@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local Claude artifacts
+.claude/
+.secrets/
+
+# Logs / tmp
+*.log
+tmp/
