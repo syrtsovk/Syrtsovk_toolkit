@@ -19,6 +19,7 @@
 | Скилл | Для чего | Ссылка |
 |-------|----------|--------|
 | `promptmaker` | Элитный промпт-инженер: генерирует готовые XML-промпты для виртуальных AI-экспертов. Анализирует задачу, подбирает модули, прогоняет Self-Refine и Constitutional Principles. | [skills/promptmaker](skills/promptmaker/) |
+| `design-expert` | Эксперт-ассистент по Claude Design: составляет промпты для генерации презентаций / лендингов / прототипов / инфографики, подбирает стили и настройки, решает задачи в продукте Claude Design. | [skills/design-expert](skills/design-expert/) |
 
 ### Commands
 
