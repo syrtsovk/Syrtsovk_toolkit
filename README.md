@@ -20,6 +20,7 @@
 |-------|----------|--------|
 | `promptmaker` | Элитный промпт-инженер: генерирует готовые XML-промпты для виртуальных AI-экспертов. Анализирует задачу, подбирает модули, прогоняет Self-Refine и Constitutional Principles. | [skills/promptmaker](skills/promptmaker/) |
 | `design-expert` | Эксперт-ассистент по Claude Design: составляет промпты для генерации презентаций / лендингов / прототипов / инфографики, подбирает стили и настройки, решает задачи в продукте Claude Design. | [skills/design-expert](skills/design-expert/) |
+| `promptscanner` | Промтсканнер: анализирует чужие промты, выдаёт балл 0-100 и честный разбор — что грамотно, что недоработано, что реально получишь на выходе. Защищён от prompt injection. | [skills/promptscanner](skills/promptscanner/) |
 
 ### Prompts
 
