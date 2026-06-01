@@ -28,6 +28,12 @@
 |-------|----------|--------|
 | `promptscanner` | Промтсканнер — проверь чужой промт за 30 секунд: балл 0-100, что грамотно, что недоработано, что реально получишь на выходе. Защищён от prompt injection. | [prompts/promptscanner](prompts/promptscanner/) |
 
+### Guides
+
+| Гайд | Для чего | Ссылка |
+|------|----------|--------|
+| Ключевые файлы кодинг-агентов | CLAUDE.md, AGENTS.md, .cursorrules, GEMINI.md простыми словами: что это, зачем и как написать правильно. Шпаргалка по Claude Code / Codex / Cursor / Gemini / Antigravity, антипаттерны, лайфхаки, готовый шаблон. | [guides/](guides/) |
+
 ### Commands
 
 _Slash-команды для Claude Code — скоро добавлю._
