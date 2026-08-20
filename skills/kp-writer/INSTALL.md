@@ -31,8 +31,20 @@
 mkdir -p ~/.claude/skills
 git clone --depth 1 https://github.com/syrtsovk/Syrtsovk_toolkit.git /tmp/syrtsovk-toolkit
 cp -R /tmp/syrtsovk-toolkit/skills/kp-writer ~/.claude/skills/kp-writer
+cp -R /tmp/syrtsovk-toolkit/skills/humanvoice ~/.claude/skills/humanvoice
 rm -rf /tmp/syrtsovk-toolkit
 ```
+
+**Второй скилл, `humanvoice`, ставится вместе с первым - он лежит в том же репозитории
+и копируется той же командой.** Он нужен не для красоты: методология отвечает за то,
+**что** сказано в предложении, и совсем ничего не делает с тем, **как** это звучит.
+Свежесгенерированный текст выдаёт себя гладкими тройками, причастными хвостами
+и оценками вместо фактов. Клиент не назовёт причину, но почувствует, и документ,
+безупречный по смыслу, прочтётся как рассылка. kp-writer прогоняет через него каждый
+текст перед показом.
+
+Не скопировался - не блокер: kp-writer скажет об этом вслух и почистит текст сам,
+но слабее.
 
 Проверка - должно вывести восемь файлов:
 
@@ -41,6 +53,7 @@ find ~/.claude/skills/kp-writer -type f | sort
 ```
 
 Ожидается: `SKILL.md` · `INSTALL.md` · `README.md` · три файла в `assets/` · четыре в `references/`.
+Плюс отдельная папка `~/.claude/skills/humanvoice/` с `SKILL.md` внутри.
 Файлов меньше - копирование не прошло, повтори шаг.
 
 Скилл уже виден Claude Code, но **работать ещё не будет** - ему нужен профиль с шага 4.
@@ -185,6 +198,7 @@ cp ~/.claude/skills/kp-writer/assets/profile.example.md ~/.claude/skills/kp-writ
 S=~/.claude/skills/kp-writer
 OK=1
 [ -f "$S/SKILL.md" ] && echo "файлы скилла  : ОК ($(find "$S" -type f | wc -l | tr -d ' ') шт)" || { echo "файлы скилла  : НЕТ - шаг 1 не прошёл"; OK=0; }
+[ -f ~/.claude/skills/humanvoice/SKILL.md ] && echo "humanvoice    : ОК" || echo "humanvoice    : нет - текст будет чиститься вручную, слабее" 
 if [ -f "$S/profile.md" ]; then
   N=$(grep -c "ЗАПОЛНИ-" "$S/profile.md")
   [ "$N" -eq 0 ] && echo "профиль       : ОК, заполнен" || { echo "профиль       : НЕ ЗАПОЛНЕН - осталось $N заглушек"; OK=0; }
