@@ -1,0 +1,474 @@
+<!--
+  СКЛАД ГОТОВЫХ БЛОКОВ ДЛЯ КП.
+
+  Этот файл не открывают в браузере - он не страница, а набор запчастей.
+  Все классы и анимации уже описаны в assets/kp-template.html: копируешь кусок
+  отсюда в нужный раздел шаблона, заменяешь данные - блок работает,
+  включая появление при скролле, печать и темную тему.
+
+  Порядок блоков примерно соответствует силе воздействия на человека,
+  который решает, платить нам или нет.
+
+  ОБЩЕЕ ПРАВИЛО ОТБОРА: блок ставится, если у него есть чем питаться.
+  График без цифр клиента, калькулятор без модулей и мокап без его имен -
+  пустая нарядность, она хуже строгого текста. Нечем наполнить - удали
+  блок целиком вместе с пунктом навигации.
+
+  ==================================================================
+  СОДЕРЖАНИЕ
+   1. Мокап продукта             - самый ценный блок
+   2. Визуализация масштаба      - когда в цифрах перекос
+   3. График динамики            - падение или рост по периодам
+   4. Горизонтальные полосы      - структура: сегменты, доли, состав базы
+   5. Схема потока               - откуда данные, что происходит, где результат
+   6. Таймлайн по неделям        - снимает вопрос «а когда я это увижу»
+   7. Сравнение с альтернативой  - работает на блокер «дорого»
+   8. Калькулятор сборки         - если предложение модульное
+   9. Таблица, врезки, модули    - мелочь, но нужна постоянно
+  10. Набор SVG-иконок           - вместо эмодзи
+  ==================================================================
+-->
+
+
+<!-- ================================================================
+     1. МОКАП ПРОДУКТА
+     Самый ценный блок. Человек видит продукт, а не описание продукта.
+     Наполняется НАСТОЯЩИМИ данными клиента: его клиенты по именам,
+     его суммы, его сроки. Выдуманные «Иванов И. И.» убивают весь эффект.
+     Подпись под мокапом обязательна - без нее обсуждение уедет
+     в цвет кнопок вместо сути.
+     ================================================================ -->
+<figure class="reveal">
+<div class="mock">
+  <div class="mockbar">
+    <span class="cir"></span><span class="cir"></span><span class="cir"></span>
+    <span class="ttl">НАЗВАНИЕ ЭКРАНА - раздел</span>
+  </div>
+  <div class="mockhead">
+    <div>
+      <div class="h">Заголовок экрана</div>
+      <div class="s">Подзаголовок: что человек тут видит и зачем пришел</div>
+    </div>
+    <span class="chip urgent">3 срочных</span>
+  </div>
+
+  <div class="mrow">
+    <div>
+      <div class="mname">Настоящее имя клиента или объекта</div>
+      <div class="mmeta">Факт из его данных: сумма, дата, статус</div>
+      <div class="mhint">Что система подсказывает сделать: <b>конкретное действие</b> с обоснованием из данных</div>
+    </div>
+    <div class="mact">
+      <span class="mbtn">Действие</span>
+      <span class="mbtn gh">Отложить</span>
+    </div>
+  </div>
+
+  <div class="mrow">
+    <div>
+      <div class="mname">Второй пример</div>
+      <div class="mmeta">Другой статус, другая цифра</div>
+      <div class="mhint">Вторая подсказка</div>
+    </div>
+    <div class="mact">
+      <span class="mstatus">
+        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        готово
+      </span>
+    </div>
+  </div>
+</div>
+<figcaption>Оформление рабочее, финальный вид согласуем. Данные на макете - ваши, из выгрузки от [дата].</figcaption>
+</figure>
+
+
+<!-- ================================================================
+     2. ВИЗУАЛИЗАЦИЯ МАСШТАБА
+     Когда в цифрах есть перекос, показывай его физически.
+     Шесть фигурок людей против сетки из 170 точек читаются мгновенно,
+     а таблица с теми же числами не дает этого эффекта.
+     --d задает задержку появления каждой точки: точки проявляются волной.
+     ================================================================ -->
+<figure class="reveal">
+<div class="scale">
+  <div class="sbox">
+    <h4>Что есть сейчас</h4>
+    <div class="sn" data-cnt="6">0</div>
+    <div class="sc">человек в отделе</div>
+    <div class="people">
+      <!-- повторить фигурку нужное число раз -->
+      <svg aria-hidden="true" viewBox="0 0 24 30" fill="var(--now)"><circle cx="12" cy="6" r="5"/><path d="M12 13c-5 0-9 3.6-9 8v9h18v-9c0-4.4-4-8-9-8z"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 30" fill="var(--now)"><circle cx="12" cy="6" r="5"/><path d="M12 13c-5 0-9 3.6-9 8v9h18v-9c0-4.4-4-8-9-8z"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 30" fill="var(--now)"><circle cx="12" cy="6" r="5"/><path d="M12 13c-5 0-9 3.6-9 8v9h18v-9c0-4.4-4-8-9-8z"/></svg>
+    </div>
+  </div>
+  <div class="sbox">
+    <h4>Сколько надо обработать</h4>
+    <div class="sn" data-cnt="3400">0</div>
+    <div class="sc">клиентов в базе, одна точка - двадцать человек</div>
+    <div class="dots">
+      <!-- 170 точек: i class sleep или live, style="--d:Nms" -->
+      <i class="sleep" style="--d:0ms"></i><i class="sleep" style="--d:6ms"></i><i class="sleep" style="--d:12ms"></i>
+      <i class="live" style="--d:18ms"></i><i class="live" style="--d:24ms"></i>
+      <!-- ... остальные генерируй скриптом, руками не набивай ... -->
+    </div>
+  </div>
+</div>
+<figcaption>Шесть человек против трех тысяч четырехсот клиентов. Каждый клиент требует решения раз в месяц.</figcaption>
+</figure>
+
+<!-- Точки удобно сгенерировать так и вставить результат:
+python3 -c "
+n=170; live=34
+print(''.join('<i class=\"%s\" style=\"--d:%dms\"></i>'%('live' if i<live else 'sleep', i*6) for i in range(n)))
+"
+-->
+
+
+<!-- ================================================================
+     3. ГРАФИК ДИНАМИКИ
+     Столбики вырастают волной при появлении, затем проявляются линия
+     второго показателя и подписи. Пик и текущее значение выделены цветом,
+     между ними подпись с процентом падения или роста.
+     aria-label обязателен: без него график для незрячего человека
+     и для поисковика просто пустое место.
+     ================================================================ -->
+<figure class="reveal">
+  <svg class="chart" viewBox="0 0 900 300" role="img"
+       aria-label="Выручка падает с 53,3 млн рублей в третьем квартале 2024 года до 20,1 млн во втором квартале 2026 года, падение 62 процента">
+    <!-- сетка -->
+    <g class="grid" stroke-width="1">
+      <line x1="60" y1="40"  x2="880" y2="40"/>
+      <line x1="60" y1="105" x2="880" y2="105"/>
+      <line x1="60" y1="170" x2="880" y2="170"/>
+      <line x1="60" y1="235" x2="880" y2="235"/>
+    </g>
+    <!-- подписи оси -->
+    <g class="axis">
+      <text x="52" y="44"  text-anchor="end">60</text>
+      <text x="52" y="109" text-anchor="end">40</text>
+      <text x="52" y="174" text-anchor="end">20</text>
+      <text x="52" y="239" text-anchor="end">0</text>
+    </g>
+    <!-- столбики. --d - задержка появления, растет слева направо -->
+    <rect class="bar peak" x="80"  y="60"  width="70" height="175" style="--d:0ms"/>
+    <rect class="bar"      x="180" y="95"  width="70" height="140" style="--d:80ms"/>
+    <rect class="bar"      x="280" y="130" width="70" height="105" style="--d:160ms"/>
+    <rect class="bar now"  x="380" y="170" width="70" height="65"  style="--d:240ms"/>
+    <!-- значения над столбиками -->
+    <g class="vlab" text-anchor="middle">
+      <text x="115" y="52"  style="--d:400ms">53,3</text>
+      <text x="215" y="87"  style="--d:480ms">41,0</text>
+      <text x="315" y="122" style="--d:560ms">30,2</text>
+      <text x="415" y="162" style="--d:640ms">20,1</text>
+    </g>
+    <!-- подписи периодов -->
+    <g class="xlab" text-anchor="middle">
+      <text x="115" y="255">3кв 2024</text>
+      <text x="215" y="255">4кв 2024</text>
+      <text x="315" y="255">1кв 2026</text>
+      <text x="415" y="255">2кв 2026</text>
+    </g>
+    <!-- линия второго показателя -->
+    <polyline class="cline" points="115,80 215,110 315,145 415,185"/>
+    <circle class="dot" cx="115" cy="80"  r="4" style="--d:400ms"/>
+    <circle class="dot" cx="415" cy="185" r="4" style="--d:640ms"/>
+    <!-- отметка падения -->
+    <text class="mark peakmark" x="500" y="120">падение 62%</text>
+  </svg>
+  <div class="legend">
+    <span><i style="background:var(--bar)"></i>выручка, млн руб</span>
+    <span><i style="background:var(--line)"></i>число сделок</span>
+  </div>
+  <figcaption>Источник: выгрузка из вашей системы за период с [дата] по [дата].</figcaption>
+</figure>
+
+
+<!-- ================================================================
+     4. ГОРИЗОНТАЛЬНЫЕ ПОЛОСЫ
+     Структура: доли сегментов, состав базы, распределение времени.
+     --w задает конечную ширину, полоса доезжает при появлении блока.
+     ================================================================ -->
+<div class="reveal">
+  <div class="brow">
+    <div class="blab">Активные</div>
+    <div class="btrack"><div class="bfill live" style="--w:22%"></div></div>
+    <div class="bval">740 <span>22%</span></div>
+    <div class="bmln">18,2 млн</div>
+  </div>
+  <div class="brow">
+    <div class="blab">Остывающие</div>
+    <div class="btrack"><div class="bfill warn" style="--w:31%"></div></div>
+    <div class="bval">1 050 <span>31%</span></div>
+    <div class="bmln">9,4 млн</div>
+  </div>
+  <div class="brow">
+    <div class="blab">Спящие</div>
+    <div class="btrack"><div class="bfill sleep" style="--w:47%"></div></div>
+    <div class="bval">1 610 <span>47%</span></div>
+    <div class="bmln">0 руб</div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     5. СХЕМА ПОТОКА
+     Четыре-шесть шагов: откуда берутся данные, что с ними происходит,
+     где появляется результат. Иконки - из набора внизу файла.
+     ================================================================ -->
+<div class="flow reveal">
+  <div class="fstep">
+    <div class="fi"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg></div>
+    <div class="fn">Источник</div>
+    <div class="fd">Откуда берем данные и как часто</div>
+  </div>
+  <div class="fstep">
+    <div class="fi"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v6H4zM4 14h16v6H4z"/></svg></div>
+    <div class="fn">Обработка</div>
+    <div class="fd">Что с ними происходит</div>
+  </div>
+  <div class="fstep">
+    <div class="fi"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/><path d="M9 21h6"/></svg></div>
+    <div class="fn">Решение</div>
+    <div class="fd">Какой вывод делает система</div>
+  </div>
+  <div class="fstep">
+    <div class="fi"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+    <div class="fn">Доставка</div>
+    <div class="fd">Куда приходит человеку</div>
+  </div>
+  <div class="fstep">
+    <div class="fi"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+    <div class="fn">Результат</div>
+    <div class="fd">Что меняется в цифрах</div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     6. ТАЙМЛАЙН ПО НЕДЕЛЯМ
+     Снимает вопрос «а когда я это увижу». Первый видимый результат
+     ставь как можно левее: чем раньше клиент увидит эффект,
+     тем меньше риска, что проект умрет по дороге.
+     ================================================================ -->
+<div class="tl2 reveal">
+  <div class="tstep">
+    <div class="tw2">Неделя 1</div>
+    <div class="tb"><b>Доступы и выгрузка</b><span>Что нужно от вас: доступ к [система]. Наша сторона: развернуть окружение.</span></div>
+  </div>
+  <div class="tstep">
+    <div class="tw2">Недели 2-3</div>
+    <div class="tb"><b>Первый рабочий контур</b><span>Уже видно результат на ваших данных. Это самая ранняя точка, где можно остановиться без потерь.</span></div>
+  </div>
+  <div class="tstep">
+    <div class="tw2">Недели 4-5</div>
+    <div class="tb"><b>Запуск в работу</b><span>Обучение команды, передача, две недели сопровождения.</span></div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     7. СРАВНЕНИЕ С РЫНОЧНОЙ АЛЬТЕРНАТИВОЙ
+     Работает на блокер «дорого»: превращает его в «дешево относительно чего».
+     Обязательно включай строку «не делать ничего» с ценой бездействия -
+     в B2B главный конкурент не другой подрядчик, а решение не решать.
+     ================================================================ -->
+<div class="vs reveal">
+  <div class="vsrow">
+    <div class="vsl">Студия разработки</div>
+    <div class="vsbar them" style="--w:100%">4-6 месяцев</div>
+    <div class="vsv">от 3 млн руб</div>
+  </div>
+  <div class="vsrow">
+    <div class="vsl">Нанять команду в штат</div>
+    <div class="vsbar them" style="--w:72%">от 3 месяцев на поиск</div>
+    <div class="vsv">от 700 тыс руб в месяц</div>
+  </div>
+  <div class="vsrow">
+    <div class="vsl">Оставить как есть</div>
+    <div class="vsbar them" style="--w:88%">потери продолжаются</div>
+    <div class="vsv">[цена бездействия] руб в квартал</div>
+  </div>
+  <div class="vsrow">
+    <div class="vsl">Наше предложение</div>
+    <div class="vsbar us" style="--w:26%">5 недель</div>
+    <div class="vsv">[наша цена] руб</div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     8. КАЛЬКУЛЯТОР СБОРКИ
+     Ставится, только если предложение модульное.
+     Переводит разговор с «дорого или нет» на «что взять».
+
+     Калькулятор обязан заканчиваться кнопками копирования и отправки.
+     Без них он бесполезен: клиент пощелкает, а мы не узнаем результат.
+     Под кнопками - строка, объясняющая, что произойдет. Даже рабочую
+     кнопку не нажимают, если непонятно, что будет.
+     ================================================================ -->
+<div class="calc" id="calc">
+  <h3>Соберите свой вариант</h3>
+  <div class="sub">Базовая часть входит всегда. Модули можно взять сразу или добавить потом.</div>
+
+  <label class="opt sel">
+    <input type="checkbox" checked disabled>
+    <div>
+      <div class="on">Базовая сборка <span class="op">320 000 руб</span></div>
+      <div class="od">Что входит всегда: [перечисление]</div>
+    </div>
+  </label>
+
+  <label class="opt">
+    <input type="checkbox" id="m1">
+    <div>
+      <div class="on">Модуль 1. Название <span class="op">+180 000 руб</span></div>
+      <div class="od">Что дает и какую работу клиента закрывает</div>
+    </div>
+  </label>
+
+  <label class="opt">
+    <input type="checkbox" id="m2">
+    <div>
+      <div class="on">Модуль 2. Название <span class="op">+120 000 руб</span></div>
+      <div class="od">Что дает</div>
+      <div class="req">Требует модуль 1</div>
+    </div>
+  </label>
+
+  <div class="total">
+    <div class="tcell"><div class="tl">Разово</div><div class="tv a" id="tot">320 000 руб</div></div>
+    <div class="tcell"><div class="tl">В месяц</div><div class="tv" id="mrr">40 000 руб</div></div>
+    <div class="tcell"><div class="tl">Срок</div><div class="tv" id="wks">4-5 недель</div></div>
+  </div>
+  <div class="tline" id="rass"></div>
+
+  <div class="cbtns">
+    <button class="cbtn" id="copysel">Скопировать сборку</button>
+    <a class="cbtn tg" id="tgsel" href="{{CONTACT_URL}}" target="_blank" rel="noopener">Открыть чат</a>
+    <button class="cbtn gh" id="cprev">Показать текстом</button>
+    <span class="cnote" id="cnote">скопировано</span>
+  </div>
+  <div class="chelp">
+    Кнопка складывает ваш выбор в текст со всеми цифрами и кладет его в буфер обмена.
+    Дальше открываете чат и вставляете - подставить текст автоматически мессенджер не дает.
+  </div>
+  <div class="cpreview" id="cpreview" hidden>
+    <div class="cpl">Текст сборки - выделите и скопируйте вручную</div>
+    <pre id="cptext"></pre>
+  </div>
+</div>
+
+<script>
+/* Калькулятор. MAP - цена, ежемесячный платеж и вклад в срок каждого модуля.
+   DEP - зависимости: ключ зависит от значения. Зависимый модуль заблокирован
+   и приглушен, пока не выбран базовый; снятие базового снимает зависимые. */
+(function(){
+/* p - разово, m - в месяц, wlo/whi - НИЖНЯЯ и ВЕРХНЯЯ граница вклада в срок.
+   Границы складываются раздельно. Раньше здесь лежал один средний срок,
+   из которого lo/hi получались как "среднее ±0,5" - и диапазон врал
+   на любом наборе модулей. Поймано на живой сборке. */
+var MAP={m1:{p:180000,m:5000,wlo:3,whi:4},m2:{p:120000,m:5000,wlo:2,whi:2}};
+var DEP={m2:'m1'};
+var BASE={p:320000,m:40000,wlo:4,whi:5};
+var NAMES={m1:'Модуль 1. Название',m2:'Модуль 2. Название'};
+/* Рассрочка обещается только на базовую сборку - так написано в тексте КП.
+   Делить на 5 общую сумму значит обещать рассрочку и на модули. */
+var RASS={sum:BASE.p, months:5};
+var fmt=window.__fmt;
+
+function recalc(){
+  /* Зависимости разрешаются ПЕРВЫМИ, до подсчета. Иначе на кадр показывается
+     сумма с модулями, которые уже отвалились вместе с базовым. */
+  Object.keys(DEP).forEach(function(k){
+    var ok=document.getElementById(DEP[k]).checked;
+    var cb=document.getElementById(k);
+    cb.disabled=!ok; cb.closest('.opt').classList.toggle('locked',!ok);
+    if(!ok) cb.checked=false;
+  });
+  var p=BASE.p,m=BASE.m,lo=BASE.wlo,hi=BASE.whi;
+  Object.keys(MAP).forEach(function(k){
+    if(document.getElementById(k).checked){ p+=MAP[k].p; m+=MAP[k].m; lo+=MAP[k].wlo; hi+=MAP[k].whi; }
+  });
+  document.getElementById('tot').textContent=fmt(p,0)+' руб';
+  document.getElementById('mrr').textContent=fmt(m,0)+' руб';
+  document.getElementById('wks').textContent=(lo===hi? lo : lo+'-'+hi)+' недель';
+  document.getElementById('rass').innerHTML='Базовую сборку можно в рассрочку на '+RASS.months+
+    ' месяцев: <strong>'+fmt(RASS.sum/RASS.months,0)+' рублей в месяц</strong>';
+
+  document.querySelectorAll('.opt').forEach(function(l){
+    var i=l.querySelector('input'); l.classList.toggle('sel', i.checked);
+  });
+
+  var picked=['Базовая сборка'];
+  Object.keys(MAP).forEach(function(k){ if(document.getElementById(k).checked) picked.push(NAMES[k]); });
+  window.__sel='Собрал сборку по вашему предложению:\n\n- '+picked.join('\n- ')+
+    '\n\nИтого: '+fmt(p,0)+' руб разово, '+fmt(m,0)+' руб в месяц.'+
+    '\nБазовая сборка в рассрочку на '+RASS.months+' месяцев: '+fmt(RASS.sum/RASS.months,0)+' руб в месяц.'+
+    '\nСрок: '+(lo===hi? lo : lo+'-'+hi)+' недель.\n\nГотов обсуждать.';
+  var pv=document.getElementById('cptext'); if(pv) pv.textContent=window.__sel;
+}
+Object.keys(MAP).forEach(function(k){
+  document.getElementById(k).addEventListener('change',recalc);
+});
+recalc();
+
+var note=document.getElementById('cnote'), prev=document.getElementById('cpreview');
+document.getElementById('copysel').addEventListener('click',function(){
+  window.__copyText(
+    function(){ note.classList.add('on'); setTimeout(function(){note.classList.remove('on')},3500); },
+    function(){ prev.hidden=false; prev.scrollIntoView({block:'nearest'}); }  /* третий путь: буфер недоступен */
+  );
+});
+document.getElementById('cprev').addEventListener('click',function(){ prev.hidden=!prev.hidden; });
+})();
+</script>
+
+
+<!-- ================================================================
+     9. МЕЛОЧЬ, КОТОРАЯ НУЖНА ПОСТОЯННО
+     ================================================================ -->
+
+<!-- Таблица. Обертка .tw обязательна: без нее на телефоне таблица
+     разъезжает всю страницу вбок. -->
+<div class="tw">
+  <table>
+    <thead><tr><th>Что</th><th class="n">Сейчас</th><th class="n">Станет</th></tr></thead>
+    <tbody>
+      <tr><td>Показатель</td><td class="n">100</td><td class="n">140</td></tr>
+      <tr class="hl"><td>Итого</td><td class="n">100</td><td class="n">140</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Врезки: обычная, предупреждение, ключевая мысль -->
+<div class="note"><p>Обычная врезка: уточнение или пояснение.</p></div>
+<div class="note warn"><p>Предупреждение: то, что зависит от клиента и без чего сроки поедут.</p></div>
+<div class="note key"><p>Ключевая мысль: то, ради чего написан весь раздел.</p></div>
+
+<!-- Сетка модулей с ценами -->
+<div class="mods">
+  <div class="mod">
+    <div class="mh"><span class="mt">Название модуля</span><span class="mp">180 000 руб</span></div>
+    <p>Какую работу закрывает и что меняется в цифрах.</p>
+  </div>
+  <div class="mod">
+    <div class="mh"><span class="mt">Второй модуль</span><span class="mp">120 000 руб</span></div>
+    <p>То же самое.</p>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     10. НАБОР SVG-ИКОНОК
+     Эмодзи выглядят по-разному на разных системах и не подчиняются теме,
+     поэтому иконки только такие. Цвет берется из currentColor.
+     ================================================================ -->
+<!-- база данных   --> <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg>
+<!-- телефон       --> <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>
+<!-- диаграмма     --> <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-6 4 3 5-8"/></svg>
+<!-- галочка       --> <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+<!-- часы          --> <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+<!-- предупреждение--> <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+<!-- человек       --> <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+<!-- шестеренка    --> <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>

@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<!--
+  ШАБЛОН КП. Как пользоваться:
+  1. Скопируй файл в папку клиента под именем КП_<Клиент>_<Дата>.html
+  2. Замени плейсхолдеры {{...}} - их полный список внизу файла, в комментарии ЧЕКЛИСТ
+  3. Готовые блоки (график, мокап, калькулятор, таймлайн, сравнение) бери из assets/kp-blocks.html
+  4. Лишние секции удаляй целиком вместе с пунктом навигации - пустая нарядность хуже строгого текста
+
+  ЧЕГО ЗДЕСЬ НЕТ И НЕ ДОЛЖНО ПОЯВИТЬСЯ:
+  - внешних ресурсов: шрифтов с CDN, библиотек графиков, картинок по URL. Файл открывается без интернета
+  - буквы «е» с точками и длинного тире. Только обычный дефис
+  - эмодзи в роли иконок. Иконки - инлайн SVG, они подчиняются теме
+  - жестко заданного белого цвета текста - см. комментарий у блока токенов
+-->
+<style>
+/* ================================================================
+   ТОКЕНЫ
+   Пары --ink/--on-ink и --on-accent существуют отдельно от --primary
+   не для красоты. --primary, --fg, --bg переворачиваются между темами:
+   в светлой --primary почти черный, в темной почти белый. Взять такой
+   токен фоном под текст фиксированного цвета - значит получить блок,
+   который в одной из тем не читается. Ошибка невидима, пока не
+   переключишь тему, а проверяют обычно только светлую.
+   Фон темных блоков - только --ink/--ink2, текст на них - только --on-ink.
+   ================================================================ */
+:root{
+--bg:#F7F9FC;--surface:#fff;--surface2:#FBFCFE;--fg:#0B1220;--fg2:#3C4A5E;--fg3:#6B7A90;
+--primary:#0F172A;--accent:#0369A1;--accent2:#0EA5E9;--border:#E3E9F0;--muted:#EEF2F7;
+--bar:#A9B7C9;--peak:#0F172A;--now:#0369A1;--line:#B45309;--warn:#CA8A04;--sleep:#8FA0B6;
+--danger:#DC2626;--ok:#047857;--r:10px;--maxw:1080px;
+--ink:#0E1A2E;--ink2:#123E63;--on-ink:#F2F7FD;--on-accent:#fff;
+--shadow:0 1px 2px rgba(11,18,32,.06),0 8px 24px rgba(11,18,32,.06);
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+--bg:#080D16;--surface:#0F1725;--surface2:#131C2C;--fg:#E9EFF8;--fg2:#B4C1D4;--fg3:#8494AB;
+--primary:#E9EFF8;--accent:#38BDF8;--accent2:#7DD3FC;--border:#1E293B;--muted:#141F31;
+--bar:#3E5372;--peak:#94A3B8;--now:#38BDF8;--line:#F59E0B;--warn:#EAB308;--sleep:#3E5372;
+--danger:#F87171;--ok:#34D399;
+--ink:#0A1626;--ink2:#0E3352;--on-ink:#EAF2FB;--on-accent:#042539;
+--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+}}
+/* Темная тема переворачивает акцент в светло-голубой, поэтому --on-accent
+   там становится ТЕМНЫМ. Белый текст на кнопке в темной теме исчезает. */
+
+/* ================================================================ БАЗА */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{margin:0;background:var(--bg);color:var(--fg);font-size:16px;line-height:1.62;
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+-webkit-font-smoothing:antialiased}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px 90px}
+h1{font-size:clamp(28px,4.6vw,46px);line-height:1.12;margin:0 0 20px;letter-spacing:-.025em;font-weight:800;max-width:19ch}
+h2{font-size:clamp(22px,2.9vw,30px);margin:70px 0 14px;letter-spacing:-.02em;font-weight:750;scroll-margin-top:80px}
+h2 .num{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;
+background:var(--primary);color:var(--bg);font-size:14px;font-weight:700;margin-right:12px;vertical-align:3px}
+h3{font-size:19px;margin:34px 0 10px;font-weight:650}
+p{margin:0 0 14px;max-width:74ch;color:var(--fg2)}
+p strong,li strong{color:var(--fg);font-weight:650}
+ul,ol{max-width:74ch;padding-left:22px;color:var(--fg2)}
+li{margin-bottom:9px}
+a{color:var(--accent)}
+
+/* ============================================ ОСНАСТКА: прогресс, навигация, наверх */
+#prog{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;z-index:100;transition:width .1s linear}
+.topbar{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);
+backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.topbar .in{max-width:var(--maxw);margin:0 auto;padding:9px 22px;display:flex;align-items:center;gap:18px}
+.brandmini{font-weight:700;font-size:14px;white-space:nowrap}
+.brandmini span{color:var(--fg3);font-weight:400}
+.tnav{display:flex;gap:3px;overflow-x:auto;scrollbar-width:none;flex:1}
+.tnav::-webkit-scrollbar{display:none}
+.tnav a{font-size:13px;color:var(--fg3);text-decoration:none;padding:5px 9px;border-radius:6px;white-space:nowrap;transition:.18s}
+.tnav a:hover{color:var(--fg);background:var(--muted)}
+.tnav a.on{color:var(--accent);background:var(--muted);font-weight:600}
+#up{position:fixed;right:22px;bottom:22px;width:44px;height:44px;border-radius:50%;background:var(--primary);color:var(--bg);
+display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;opacity:0;pointer-events:none;
+transition:.25s;z-index:70;box-shadow:var(--shadow)}
+#up.on{opacity:1;pointer-events:auto}
+footer{margin-top:70px;padding-top:26px;border-top:2px solid var(--primary);font-size:14px;color:var(--fg3);
+display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
+
+/* ============================================ ШАПКА И КРУПНЫЕ ЧИСЛА */
+.hero{padding:52px 0 30px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.09em;text-transform:uppercase;
+color:var(--accent);background:var(--muted);padding:6px 12px;border-radius:99px;margin-bottom:20px;font-weight:600}
+.lede{font-size:18px;color:var(--fg2);max-width:66ch}
+.lede b{color:var(--fg);font-weight:650}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:36px 0 10px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--accent);opacity:.75}
+.kpi.d::after{background:var(--danger)}
+.kpi .n{font-size:clamp(24px,3vw,33px);font-weight:800;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.kpi.d .n{color:var(--danger)}
+.kpi .c{font-size:13px;color:var(--fg3);margin-top:7px;line-height:1.4}
+
+/* ============================================ КАРТОЧКИ, ВРЕЗКИ, ТАБЛИЦЫ */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px;box-shadow:var(--shadow);margin:26px 0}
+.note{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:0 var(--r) var(--r) 0;padding:18px 22px;margin:24px 0}
+.note.warn{border-left-color:var(--warn)}
+.note.key{border-left-color:var(--danger)}
+.note p:last-child{margin-bottom:0}
+/* Таблица всегда внутри .tw - иначе на телефоне разъедет всю страницу */
+table{border-collapse:collapse;width:100%;font-size:15px;min-width:460px}
+.tw{overflow-x:auto;margin:20px 0;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}
+th{background:var(--muted);text-align:left;padding:12px 15px;font-weight:650;font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg2)}
+td{padding:12px 15px;border-top:1px solid var(--border);vertical-align:top;color:var(--fg2)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.hl td{background:var(--muted);font-weight:700;color:var(--fg)}
+.chip{font-size:11.5px;padding:4px 10px;border-radius:99px;font-weight:650;white-space:nowrap}
+.chip.urgent{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
+.chip.warm{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.chip.lost{background:var(--muted);color:var(--fg2)}
+.chip.new{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+
+/* ============================================ ГРАФИКИ (инлайн SVG) */
+figure{margin:26px 0}
+.chart{width:100%;height:auto;display:block}
+.grid{stroke:var(--border)}
+.bar{fill:var(--bar)} .bar.peak{fill:var(--peak)} .bar.now{fill:var(--now)}
+.cline{fill:none;stroke:var(--line);stroke-width:2.5;stroke-linejoin:round}
+.dot{fill:var(--line)}
+.vlab{font-size:12.5px;font-weight:700;fill:var(--fg);font-variant-numeric:tabular-nums}
+.xlab{font-size:10.5px;fill:var(--fg3)}
+.axis{font-size:10px;fill:var(--fg3)}
+.mark{font-size:10px;fill:var(--danger);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--fg2);margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:7px;vertical-align:-1px}
+figcaption{font-size:13.5px;color:var(--fg3);margin-top:14px;line-height:1.55}
+
+/* ============================================ ГОРИЗОНТАЛЬНЫЕ ПОЛОСЫ */
+.brow{display:grid;grid-template-columns:158px 1fr 120px 80px;gap:14px;align-items:center;margin-bottom:11px;font-size:14px}
+.blab{color:var(--fg2)}
+.btrack{background:var(--muted);border-radius:5px;height:26px;overflow:hidden}
+.bfill{height:100%;border-radius:5px;width:0}
+.reveal.in .bfill{width:var(--w);transition:width 1s cubic-bezier(.16,1,.3,1) .1s}
+.bfill.live{background:var(--now)}.bfill.warn{background:var(--warn)}.bfill.sleep{background:var(--sleep)}
+.bval{text-align:right;font-variant-numeric:tabular-nums}
+.bval span{color:var(--fg3);font-size:12px;display:block}
+.bmln{text-align:right;color:var(--fg3);font-variant-numeric:tabular-nums;font-size:13px}
+/* Сравнение с рыночной альтернативой */
+.vs{display:grid;gap:12px;margin:24px 0}
+.vsrow{display:grid;grid-template-columns:170px 1fr 130px;gap:14px;align-items:center;font-size:14px}
+.vsbar{height:34px;border-radius:6px;display:flex;align-items:center;padding:0 12px;color:var(--on-accent);font-weight:650;font-size:13px;width:0}
+.reveal.in .vsbar{transition:width .9s cubic-bezier(.16,1,.3,1);width:var(--w)}
+.vsbar.us{background:var(--accent)}
+.vsbar.them{background:var(--fg3);color:var(--surface)}
+.vsl{color:var(--fg2)}
+.vsv{text-align:right;font-variant-numeric:tabular-nums;color:var(--fg3);font-size:13px}
+
+/* ============================================ ВИЗУАЛИЗАЦИЯ МАСШТАБА */
+.scale{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:6px}
+.sbox{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:20px}
+.sbox h4{margin:0 0 4px;font-size:15px;font-weight:650}
+.sbox .sn{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.sbox .sc{font-size:12.5px;color:var(--fg3);margin:6px 0 14px}
+.dots{display:flex;flex-wrap:wrap;gap:3px;max-height:132px;overflow:hidden}
+.dots i{width:8px;height:8px;border-radius:2px;opacity:0;transform:scale(.4)}
+.reveal.in .dots i{animation:pop .34s cubic-bezier(.2,1.4,.4,1) forwards;animation-delay:var(--d)}
+@keyframes pop{to{opacity:1;transform:scale(1)}}
+.dots i.sleep{background:var(--sleep)}
+.dots i.live{background:var(--now)}
+.people{display:flex;gap:7px;margin-top:6px}
+.people svg{width:30px;height:38px;flex:none}
+
+/* ============================================ МОКАП ПРОДУКТА */
+.mock{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);margin:26px 0}
+.mockbar{background:var(--muted);padding:9px 14px;display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--border)}
+.mockbar .cir{width:10px;height:10px;border-radius:50%;background:var(--border)}
+.mockbar .ttl{font-size:12.5px;color:var(--fg3);margin-left:8px}
+.mockhead{padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px}
+.mockhead .h{font-size:17px;font-weight:700}
+.mockhead .s{font-size:12.5px;color:var(--fg3)}
+.mrow{padding:14px 18px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
+.mrow:last-child{border-bottom:none}
+.mname{font-weight:650;font-size:15px;margin-bottom:3px}
+.mmeta{font-size:12.5px;color:var(--fg3);margin-bottom:8px}
+.mhint{background:var(--surface2);border-left:2px solid var(--accent);border-radius:0 6px 6px 0;padding:8px 12px;font-size:13.5px;color:var(--fg2)}
+.mhint b{color:var(--fg)}
+.mact{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.mbtn{font-size:12.5px;padding:6px 12px;border-radius:7px;background:var(--accent);color:var(--on-accent);font-weight:600;white-space:nowrap}
+.mbtn.gh{background:transparent;color:var(--fg3);border:1px solid var(--border)}
+.mstatus{font-size:11.5px;color:var(--ok);font-weight:600;display:flex;align-items:center;gap:4px}
+
+/* ============================================ СХЕМА ПОТОКА И ТАЙМЛАЙН */
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:26px 0;align-items:stretch}
+.fstep{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 14px;position:relative;box-shadow:var(--shadow)}
+.fstep .fi{width:32px;height:32px;border-radius:8px;background:var(--muted);display:flex;align-items:center;justify-content:center;margin-bottom:10px;color:var(--accent)}
+.fstep .fn{font-size:14px;font-weight:650;margin-bottom:4px}
+.fstep .fd{font-size:12.5px;color:var(--fg3);line-height:1.45}
+.fstep::after{content:"";position:absolute;right:-8px;top:50%;width:9px;height:9px;border-top:2px solid var(--border);border-right:2px solid var(--border);transform:translateY(-50%) rotate(45deg)}
+.fstep:last-child::after{display:none}
+.tl2{display:grid;gap:12px;margin:26px 0}
+.tstep{display:grid;grid-template-columns:92px 1fr;gap:16px;align-items:start}
+.tstep .tw2{font-size:12.5px;color:var(--accent);font-weight:700;padding-top:2px;text-transform:uppercase;letter-spacing:.05em}
+.tstep .tb{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:0 var(--r) var(--r) 0;padding:14px 18px}
+.tstep .tb b{display:block;margin-bottom:3px;font-size:15px;color:var(--fg)}
+.tstep .tb span{font-size:13.5px;color:var(--fg3)}
+
+/* ============================================ ЦЕНА И МОДУЛИ */
+.mods{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:22px 0}
+.mod{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--shadow)}
+.mod .mh{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:8px;flex-wrap:wrap}
+.mod .mt{font-weight:700;font-size:16px}
+.mod .mp{color:var(--accent);font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mod p{font-size:14px;margin:0}
+/* Темный ценовой блок - только через --ink/--on-ink, см. комментарий у токенов */
+.pbox{background:linear-gradient(135deg,var(--ink),var(--ink2));
+color:var(--on-ink);border:1px solid color-mix(in srgb,var(--on-ink) 14%,transparent);border-radius:14px;padding:32px;margin:30px 0;box-shadow:var(--shadow)}
+.pbox .pb{font-size:clamp(32px,5vw,46px);font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.pbox .ps{color:color-mix(in srgb,var(--on-ink) 76%,transparent);font-size:16px;margin-top:10px}
+.pbox p{color:color-mix(in srgb,var(--on-ink) 86%,transparent);max-width:62ch;margin-top:18px}
+.pbox ul{color:color-mix(in srgb,var(--on-ink) 86%,transparent)}
+.pbox li{margin-bottom:11px}
+.pbox strong{color:var(--on-ink);font-weight:700}
+
+/* ============================================ КАЛЬКУЛЯТОР СБОРКИ */
+.calc{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:26px;margin:30px 0;box-shadow:var(--shadow)}
+.calc h3{margin:0 0 6px;font-size:20px}
+.calc .sub{font-size:14px;color:var(--fg3);margin-bottom:20px}
+.opt{display:flex;gap:14px;align-items:flex-start;padding:15px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;cursor:pointer;transition:.18s;background:var(--surface2)}
+.opt:hover{border-color:var(--accent)}
+.opt.locked{opacity:.5;cursor:not-allowed}
+.opt.sel{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.opt input{margin:3px 0 0;width:18px;height:18px;accent-color:var(--accent);flex:none;cursor:pointer}
+.opt .on{font-weight:650;font-size:15px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.opt .op{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;font-size:14px}
+.opt .od{font-size:13px;color:var(--fg3);margin-top:3px;line-height:1.45}
+.opt .req{font-size:11.5px;color:var(--warn);margin-top:5px;font-weight:600}
+.total{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:20px;padding-top:20px;border-top:2px solid var(--border)}
+.tcell .tl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg3);margin-bottom:5px}
+.tcell .tv{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tcell .tv.a{color:var(--accent)}
+.tline{margin-top:14px;font-size:13.5px;color:var(--fg3)}
+.cbtns{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap}
+.cbtn{font-size:14px;font-weight:650;padding:11px 20px;border-radius:9px;background:var(--accent);color:var(--on-accent);
+text-decoration:none;border:none;cursor:pointer;transition:.18s;font-family:inherit}
+.cbtn:hover{filter:brightness(1.08)}
+.cbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cbtn.gh{background:transparent;color:var(--fg2);border:1px solid var(--border)}
+.cbtn.gh:hover{border-color:var(--accent);color:var(--accent)}
+.cbtn.tg{background:var(--surface2);color:var(--fg2);border:1px solid var(--border)}
+.cbtn.tg:hover{border-color:var(--accent);color:var(--accent)}
+.cnote{font-size:13px;color:var(--ok);font-weight:600;opacity:0;transition:.2s}
+.cnote.on{opacity:1}
+/* .chelp - строка под кнопкой. Без нее кнопку не нажимают: человек не обязан
+   догадываться, что произойдет. Проверено на живом клиенте. */
+.chelp{font-size:12.5px;color:var(--fg3);margin-top:10px}
+.cpreview{margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.cpl{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg3);margin-bottom:8px}
+.cpreview pre{margin:0;font-size:13px;line-height:1.55;color:var(--fg2);white-space:pre-wrap;
+font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+/* ============================================ ПОЯВЛЕНИЕ ПРИ СКРОЛЛЕ */
+.reveal{opacity:0;transform:translateY(18px)}
+.reveal.in{opacity:1;transform:none;transition:opacity .55s ease,transform .55s cubic-bezier(.16,1,.3,1)}
+.chart .bar{transform-box:fill-box;transform-origin:bottom;transform:scaleY(0)}
+.reveal.in .chart .bar{animation:grow .75s cubic-bezier(.16,1,.3,1) forwards;animation-delay:var(--d)}
+@keyframes grow{to{transform:scaleY(1)}}
+.chart .vlab,.chart .dot,.chart .cline,.chart .peakmark{opacity:0}
+.reveal.in .chart .vlab,.reveal.in .chart .dot{animation:fin .4s ease forwards;animation-delay:var(--d)}
+.reveal.in .chart .cline{animation:fin .6s ease forwards .72s}
+.reveal.in .chart .peakmark{animation:fin .5s ease forwards 1.1s}
+@keyframes fin{to{opacity:1}}
+
+/* ============================================ ТЕЛЕФОН */
+@media(max-width:860px){
+.kpis{grid-template-columns:repeat(2,1fr)}
+.scale{grid-template-columns:1fr}
+.flow{grid-template-columns:1fr 1fr}
+.fstep::after{display:none}
+.mods{grid-template-columns:1fr}
+.total{grid-template-columns:1fr}
+.brow{grid-template-columns:1fr auto;gap:6px 12px}
+.blab{grid-column:1/-1;font-weight:650}
+.btrack{grid-column:1/-1}
+.bval{text-align:left}.bval span{display:inline;margin-left:4px}
+.vsrow{grid-template-columns:1fr;gap:5px}
+.vsv{text-align:left}
+.tstep{grid-template-columns:1fr;gap:6px}
+.mrow{grid-template-columns:1fr}
+.mact{flex-direction:row;align-items:center}
+}
+
+/* ============================================ ПЕЧАТЬ
+   Юрист клиента распечатает документ. Анимированные элементы без этого
+   блока печатаются в нулевом состоянии: пустые полосы, невидимые подписи. */
+@media print{
+:root{--bg:#fff;--surface:#fff;--surface2:#fff;--muted:#f1f5f9;--shadow:none}
+body{font-size:10.5pt}
+#prog,.topbar,#up,.calc .opt input,.cbtns,.chelp,.cpreview{display:none}
+.wrap{max-width:100%;padding:0}
+.reveal{opacity:1!important;transform:none!important}
+.chart .bar{transform:none!important}
+.chart .vlab,.chart .dot,.chart .cline,.chart .peakmark{opacity:1!important}
+.bfill,.vsbar{width:var(--w)!important}
+.dots i{opacity:1!important;transform:none!important}
+h2{page-break-after:avoid}
+.card,figure,table,.mod,.pbox,.note,.mock,.calc{page-break-inside:avoid}
+.pbox{background:#0E1A2E!important;color:#F2F7FD!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+a{color:inherit;text-decoration:none}
+/* На бумаге ссылка не кликается - печатаем адрес рядом, иначе бумажная копия
+   уходит без единого способа с нами связаться */
+footer a[href^="http"]::after{content:" (" attr(href) ")";font-size:9pt;color:#555}
+}
+
+/* ============================================ УВАЖЕНИЕ К НАСТРОЙКАМ
+   Не вежливость: у части людей анимация вызывает физическое недомогание.
+   Скрытые до появления блоки обязаны показаться сразу. */
+@media(prefers-reduced-motion:reduce){
+*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+.reveal{opacity:1;transform:none}
+.chart .bar{transform:none}
+.chart .vlab,.chart .dot,.chart .cline,.chart .peakmark{opacity:1}
+.dots i{opacity:1;transform:none}
+}
+</style>
+<noscript><style>
+/* Скрипты выключены - показываем все сразу. Без этого блока документ откроется
+   почти пустым: .reveal скрыт до тех пор, пока скрипт не пометит его классом .in.
+   Такое бывает в корпоративных средах и в превью почтовых клиентов, и человек
+   решит, что мы прислали сломанный файл. */
+.reveal{opacity:1!important;transform:none!important}
+.chart .bar{transform:none!important}
+.chart .vlab,.chart .dot,.chart .cline,.chart .peakmark{opacity:1!important}
+.dots i{opacity:1!important;transform:none!important}
+.bfill,.vsbar{width:var(--w)!important}
+#prog,.calc .cbtns,.calc .chelp{display:none}
+</style></noscript>
+</head>
+<body>
+
+<script>
+/* Помощники объявляются ЗДЕСЬ, до содержимого, а не внизу страницы.
+   Блоки со склада (калькулятор) вставляются в середину документа и стартуют
+   раньше нижнего скрипта. Объяви fmt внизу - калькулятор упадет на undefined
+   и цены не посчитаются вообще. Поймано на живой сборке. */
+window.__rm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* Русский формат числа: пробел разделяет тысячи, запятая - дробную часть */
+window.__fmt = function(n,dec){
+  var s=(dec?n.toFixed(1):Math.round(n).toString()).replace('.',',');
+  var parts=s.split(','); parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+  return parts.join(',');
+};
+
+/* Копирование в буфер. Три пути: при открытии файла с диска буфер часто
+   недоступен, а mailto у половины людей просто мертвая кнопка.
+   Текст кладется в window.__sel (см. калькулятор в kp-blocks.html). */
+window.__copyText = function(done,fail){
+  var txt=window.__sel||'';
+  function fallback(){
+    var ta=document.createElement('textarea'); ta.value=txt;
+    ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    var ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(ta);
+    if(ok) done(); else if(fail) fail();
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(txt).then(done, fallback);
+  else fallback();
+};
+</script>
+
+<div id="prog"></div>
+
+<nav class="topbar"><div class="in">
+  <div class="brandmini">{{ORG_SHORT}} <span>&middot; {{CLIENT}}</span></div>
+  <div class="tnav">
+    <!-- Пункт навигации на каждый раздел. href обязан совпадать с id секции -->
+    <a href="#s1">Ситуация</a>
+    <a href="#s2">Что предлагаем</a>
+    <a href="#s3">Как это работает</a>
+    <a href="#s4">Сроки</a>
+    <a href="#s5">Стоимость</a>
+    <a href="#s6">Дальше</a>
+  </div>
+</div></nav>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">{{EYEBROW}}</div>
+  <h1>{{H1}}</h1>
+  <p class="lede">{{LEDE}}</p>
+
+  <!-- Четыре числа, которые запомнят, даже если дальше не дочитают.
+       data-cnt - целевое значение, data-suf - суффикс. Досчитывают при появлении. -->
+  <div class="kpis reveal">
+    <div class="kpi d"><div class="n"><span data-cnt="{{KPI1_VAL}}" data-suf="{{KPI1_SUF}}">0</span></div><div class="c">{{KPI1_CAPTION}}</div></div>
+    <div class="kpi"><div class="n"><span data-cnt="{{KPI2_VAL}}" data-suf="{{KPI2_SUF}}">0</span></div><div class="c">{{KPI2_CAPTION}}</div></div>
+    <div class="kpi"><div class="n"><span data-cnt="{{KPI3_VAL}}" data-suf="{{KPI3_SUF}}">0</span></div><div class="c">{{KPI3_CAPTION}}</div></div>
+    <div class="kpi"><div class="n"><span data-cnt="{{KPI4_VAL}}" data-suf="{{KPI4_SUF}}">0</span></div><div class="c">{{KPI4_CAPTION}}</div></div>
+  </div>
+</header>
+
+<!-- ============ РАЗДЕЛ 1. Ситуация клиента: триггер и цена бездействия ============
+     Сюда обычно идет график динамики или визуализация масштаба из kp-blocks.html -->
+<h2 id="s1"><span class="num">1</span>{{S1_TITLE}}</h2>
+<p>{{S1_TEXT}}</p>
+
+<!-- ============ РАЗДЕЛ 2. Что предлагаем ============
+     Сюда обычно идет мокап продукта из kp-blocks.html -->
+<h2 id="s2"><span class="num">2</span>{{S2_TITLE}}</h2>
+<p>{{S2_TEXT}}</p>
+
+<!-- ============ РАЗДЕЛ 3. Как это работает ============
+     Сюда обычно идет схема потока из kp-blocks.html -->
+<h2 id="s3"><span class="num">3</span>{{S3_TITLE}}</h2>
+<p>{{S3_TEXT}}</p>
+
+<!-- ============ РАЗДЕЛ 4. Сроки ============
+     Сюда обычно идет таймлайн из kp-blocks.html -->
+<h2 id="s4"><span class="num">4</span>{{S4_TITLE}}</h2>
+<p>{{S4_TEXT}}</p>
+
+<!-- ============ РАЗДЕЛ 5. Стоимость ============
+     Темный ценовой блок. Если предложение модульное - следом калькулятор из kp-blocks.html -->
+<h2 id="s5"><span class="num">5</span>{{S5_TITLE}}</h2>
+<div class="pbox reveal">
+  <div class="pb">{{PRICE_MAIN}}</div>
+  <div class="ps">{{PRICE_SUB}}</div>
+  <p>{{PRICE_NOTE}}</p>
+</div>
+
+<!-- ============ РАЗДЕЛ 6. Следующий шаг ============ -->
+<h2 id="s6"><span class="num">6</span>{{S6_TITLE}}</h2>
+<p>{{CTA_TEXT}}</p>
+
+<footer>
+  <div>{{ORG_NAME}} &middot; {{ORG_TAGLINE}}</div>
+  <div>{{CONTACT_LINE}} &middot; {{DATE}}</div>
+</footer>
+
+</div><!-- /.wrap -->
+
+<button id="up" aria-label="Наверх">
+  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<script>
+(function(){
+var rm = window.__rm, fmt = window.__fmt;
+
+/* --- полоса прогресса чтения и кнопка наверх --- */
+var prog=document.getElementById('prog'), up=document.getElementById('up');
+function onScroll(){
+  var h=document.documentElement.scrollHeight-window.innerHeight;
+  prog.style.width=(h>0?(window.scrollY/h)*100:0)+'%';
+  up.classList.toggle('on', window.scrollY>600);
+}
+window.addEventListener('scroll',onScroll,{passive:true}); onScroll();
+up.addEventListener('click',function(){window.scrollTo({top:0,behavior:rm?'auto':'smooth'})});
+
+/* --- появление блоков при скролле --- */
+var io=new IntersectionObserver(function(es){
+  es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+},{threshold:.14,rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
+/* --- досчет крупных чисел при появлении --- */
+var cio=new IntersectionObserver(function(es){
+  es.forEach(function(e){
+    if(!e.isIntersecting) return; cio.unobserve(e.target);
+    var el=e.target, tgt=parseFloat(el.dataset.cnt), suf=el.dataset.suf||'', dec=(tgt%1!==0);
+    if(rm){ el.textContent=(tgt<0?'-':'')+fmt(Math.abs(tgt),dec)+suf; return; }
+    var t0=null, dur=1100, neg=tgt<0, abs=Math.abs(tgt);
+    function tick(ts){ if(!t0)t0=ts; var p=Math.min((ts-t0)/dur,1);
+      el.textContent=(neg?'-':'')+fmt(abs*(1-Math.pow(1-p,3)),dec)+suf;
+      if(p<1) requestAnimationFrame(tick); }
+    requestAnimationFrame(tick);
+  });
+},{threshold:.5});
+document.querySelectorAll('[data-cnt]').forEach(function(el){ cio.observe(el); });
+
+/* --- подсветка текущего раздела в навигации --- */
+var links=[].slice.call(document.querySelectorAll('.tnav a'));
+var secs=links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+function active(){
+  var best=0;
+  secs.forEach(function(s,i){ if(s && s.getBoundingClientRect().top<=120) best=i; });
+  links.forEach(function(a,i){ a.classList.toggle('on', i===best); });
+}
+window.addEventListener('scroll',active,{passive:true}); active();
+
+})();
+</script>
+
+<!--
+  ПОСЛЕДНИЙ ШАГ СБОРКИ: удали ЭТОТ комментарий и вводный комментарий вверху файла.
+  Они служебные, клиенту не нужны, и пока этот блок на месте проверка на остаток
+  плейсхолдеров всегда будет срабатывать - список ниже сам состоит из них.
+
+  ЧЕКЛИСТ ПЛЕЙСХОЛДЕРОВ. Ни одной пары {{ }} не должно остаться в готовом файле:
+  {{TITLE}} {{ORG_SHORT}} {{ORG_NAME}} {{ORG_TAGLINE}} {{CONTACT_LINE}} {{CLIENT}} {{DATE}}
+  {{EYEBROW}} {{H1}} {{LEDE}}
+  {{KPI1_VAL}} {{KPI1_SUF}} {{KPI1_CAPTION}} ... {{KPI4_CAPTION}}
+  {{S1_TITLE}} {{S1_TEXT}} ... {{S6_TITLE}} {{CTA_TEXT}}
+  {{PRICE_MAIN}} {{PRICE_SUB}} {{PRICE_NOTE}}
+
+  Проверка одной строкой:  grep -o '{{[A-Z0-9_]*}}' файл.html | sort -u
+-->
+</body>
+</html>
