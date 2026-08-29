@@ -23,6 +23,7 @@ SKIP_DIRS = {
     ".git", "node_modules", ".next", "dist", "build", ".venv", "venv", "env",
     "__pycache__", ".pytest_cache", "vendor", "target", ".idea", ".vscode",
     "coverage", ".turbo", ".cache", "site-packages", ".mypy_cache", ".tox",
+    ".claude", ".cursor",
 }
 TEXT_EXT = {
     ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".rb", ".php", ".go",
@@ -67,6 +68,10 @@ SECRETS = [
 # Для этих правил строка в комментарии — почти всегда пример из документации,
 # а не утечка. Настоящий ключ остаётся утечкой даже закомментированным.
 SKIP_IN_COMMENT = {"generic_secret", "db_url_pass"}
+
+# Признак того, что данные почистили перед вставкой в разметку.
+SANITIZED = re.compile(r"(?i)(sanitiz|dompurify|purify|escapeHtml|clean_?html|bleach|xss|"
+                       r"\\\\u003c|replace\(\s*/</|encodeURI|htmlspecialchars)")
 
 # Локальные и контейнерные адреса в строке подключения — это среда разработки,
 # а не боевой пароль: postgres://user:pass@localhost.
@@ -172,6 +177,26 @@ CODE_RULES = [
      "Если рядом нет проверки, что объект принадлежит текущему пользователю, достаточно поменять цифру в адресе — "
      "и человек читает чужой заказ, чужую переписку, чужие документы.",
      "После загрузки объекта сверяйте его владельца с текущим пользователем и отдавайте 404 при несовпадении.",
+     None),
+    ("xss_html", "high", "Пользовательские данные вставляются как разметка",
+     re.compile(r"""(?i)(dangerouslySetInnerHTML|\.innerHTML\s*=|v-html\s*=|\.html\s*\(\s*[^)'"]|"""
+                r"""insertAdjacentHTML|document\.write\s*\()"""),
+     "Браузер выполнит то, что вставили. Если в эти данные попадёт чужой текст с кодом, он запустится у каждого "
+     "посетителя страницы: утекут сессионные куки, а с ними и вход в аккаунт.",
+     "Выводите текст обычной вставкой (children в React, textContent в JS). Когда разметка действительно нужна, "
+     "прогоняйте её через очистку — DOMPurify или аналог.",
+     {".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte"}),
+    ("prisma_unsafe", "high", "Небезопасный вызов запроса в Prisma",
+     re.compile(r"\$(?:query|execute)RawUnsafe\s*\("),
+     "Методы с Unsafe в названии не экранируют подставленное значение — это прямая дорога к тому, что пользователь "
+     "допишет свой запрос и прочитает чужие данные.",
+     "Замените на $queryRaw с тегированным шаблоном — там значения уходят параметрами.",
+     None),
+    ("swallowed_error", "medium", "Ошибка перехватывается и молча теряется",
+     re.compile(r"(?m)(except[^:\n]*:\s*\n\s*pass\s*$|catch\s*\([^)]*\)\s*\{\s*\}|\.catch\s*\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\))"),
+     "Пустой перехват означает, что упавшая проверка выглядит как успешная. Если так обёрнута проверка прав или "
+     "платёж, отказ превращается в разрешение, и в журнале не остаётся следа.",
+     "Запишите ошибку в журнал и верните отказ. Молча продолжать можно только там, где сбой действительно ничего не значит.",
      None),
     ("upload_unbounded", "medium", "Загрузка файлов без ограничений",
      re.compile(r"(?i)(multer\s*\(\s*\{\s*(?![^}]*limits)|upload\.(single|array|any)\(|request\.files\[)"),
@@ -363,6 +388,8 @@ def check_code_rules(root: Path, findings: list) -> None:
             for m in pattern.finditer(text):
                 if is_commented(text, m.start()) or is_pattern_declaration(text, m.start()):
                     continue
+                if rid == "xss_html" and SANITIZED.search(text[max(0, m.start() - 500): m.end() + 200]):
+                    continue        # данные прогнали через очистку — вставка безопасна
                 snippet = m.group(0).strip().replace("\n", " ")[:70]
                 add(findings,
                     id=rid, severity=severity, title=title,

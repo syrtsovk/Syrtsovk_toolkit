@@ -43,7 +43,39 @@
     "L3_findings_fixed": [
       "Два правила были сформулированы через запрет («не печатай», «не расписывай») — переписаны в позитив согласно канону.",
       "Anti-contradiction pass: пара «предложи починить» и «правь только отчёт» разведена явной иерархией — починка начинается после согласия человека."
-    ]
+    ],
+    "coverage_review": {
+      "reason": "Кирилл спросил, собраны ли проверки из его существующих инструментов. Первая сборка шла от разбора стороннего репозитория, ревизии своих инструментов не было — проведена отдельно.",
+      "sources_reviewed": [
+        "плагин vibe-audit@ilia-izmailov-plugins (feature-scanner, features/server/ui/stores-auditor)",
+        "slab/.claude/commands/find-bugs.md",
+        "slab/.claude/commands/code-review.md",
+        "slab/.claude/commands/techdebt.md",
+        "slab/.claude/commands/pereddeploem.md (Agent 2 SECURITY AUDIT)",
+        "finapp/scripts/security-gate.sh"
+      ],
+      "added_from_own_tools": [
+        "xss_html — вставка данных как разметки (было в security-gate.sh и code-review, в первой сборке пропущено)",
+        "prisma_unsafe — $queryRawUnsafe / $executeRawUnsafe (из security-gate.sh)",
+        "swallowed_error — молча проглоченная ошибка, fail-open (из find-bugs, OWASP A10:2025)",
+        "unused_export — неиспользуемые экспорты (из features-auditor Измайлова)",
+        "orphan_route — объявленный маршрут без обращений (из feature-scanner и server-auditor)",
+        "debug_output — оставленные console.log / print (из code-review)",
+        "oversized_file — файл сверх лимита 600 строк (из techdebt и FILE SIZE LIMITS)",
+        "методология: доказательство находки трассой, список того, что не выносить в отчёт, итоговый вердикт (из find-bugs)"
+      ],
+      "considered_and_rejected": [
+        "magic numbers и глубокая вложенность из techdebt — много шума без разбора синтаксиса",
+        "длина функций — эвристика без AST дала 45 ложных находок на одном проекте, правило снято",
+        "захардкоженные цвета вместо токенов из ui-auditor — про дизайн-систему, вне задачи скилла",
+        "паттерны ERR-XXX из error-log.md — проектная специфика Кирилла, в публичном скилле бесполезны"
+      ],
+      "false_positives_fixed_in_this_pass": [
+        "XSS не срабатывает там, где данные прогнали через очистку или экранировали < (проверено на rich-text.tsx и faq-section.tsx)",
+        "экспорты типов и интерфейсов исключены — их держат для читаемости, мёртвыми не считаются",
+        "папки .claude/ и .cursor/ с чужими плагинами больше не сканируются"
+      ]
+    }
   },
   "user_overrides": [
     {

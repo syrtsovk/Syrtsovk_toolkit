@@ -262,6 +262,137 @@ def check_unused_deps(root: Path, findings: list, files: dict[str, str]) -> None
             fix="Удостоверьтесь, что пакет не нужен сборщику или конфигу, и удалите: npm uninstall <пакет>.")
 
 
+# Типы и интерфейсы намеренно не проверяем: их экспортируют для читаемости,
+# и «неиспользуемый» тип — норма, а не мусор.
+JS_EXPORT = re.compile(r"(?m)^export\s+(?:const|function|class)\s+(\w+)")
+JS_REEXPORT = re.compile(r"(?m)^export\s*\{([^}]+)\}")
+PY_DEF = re.compile(r"(?m)^(?:def|class)\s+(\w+)")
+ROUTE_PATH = re.compile(r"""(?i)(?:app|router|api)\.(?:get|post|put|patch|delete)\s*\(\s*["'`]([^"'`]{2,60})["'`]"""
+                        r"""|@(?:app|router)\.(?:get|post|put|patch|delete)\s*\(\s*["'`]([^"'`]{2,60})["'`]""")
+TRPC_PROC = re.compile(r"(?m)^\s*(\w+)\s*:\s*\w*[Pp]rocedure[\s.\n]")
+DEBUG_PRINT = re.compile(r"(?m)^\s*(console\.(log|debug|dir)|print)\s*\(")
+
+
+def check_unused_exports(root: Path, findings: list, files: dict[str, str]) -> None:
+    """Экспорт объявлен, но никто снаружи его не импортирует."""
+    exported: dict[str, str] = {}          # имя → где объявлено
+    for rel, text in files.items():
+        if TEST_LIKE.search(rel) or STANDALONE.search(rel) or CONFIG_LIKE.search(rel):
+            continue
+        suffix = Path(rel).suffix.lower()
+        if suffix in {".ts", ".tsx", ".js", ".jsx", ".mjs"}:
+            for m in JS_EXPORT.finditer(text):
+                exported.setdefault(m.group(1), f"{rel}:{line_no(text, m.start())}")
+            for m in JS_REEXPORT.finditer(text):
+                for name in m.group(1).split(","):
+                    clean = name.split(" as ")[-1].strip()
+                    if clean:
+                        exported.setdefault(clean, f"{rel}:{line_no(text, m.start())}")
+
+    unused = []
+    for name, where in exported.items():
+        if len(name) < 3:
+            continue
+        home = where.split(":")[0]
+        # ищем упоминание имени в любом другом файле проекта
+        used_elsewhere = any(
+            rel != home and re.search(rf"\b{re.escape(name)}\b", text)
+            for rel, text in files.items()
+        )
+        if not used_elsewhere:
+            unused.append((name, where))
+
+    for name, where in unused[:20]:
+        add(findings,
+            id="unused_export", severity="low",
+            title=f"Экспорт `{name}` никем не используется",
+            where=where,
+            what="Значение объявлено как экспортируемое, но ни один другой файл проекта на него не ссылается.",
+            why="Экспорт — это обещание, что снаружи этим пользуются. Пока обещание висит, код нельзя ни удалить "
+                "спокойно, ни изменить: непонятно, кого сломаешь. Такие хвосты накапливаются и превращают "
+                "простую правку в исследование.",
+            fix="Убедитесь, что имя не зовут динамически (по строке, через реестр), и уберите экспорт "
+                "или сам код целиком. Для готовых наборов компонентов (shadcn и подобные) это нормально: "
+                "их копируют целиком, и часть остаётся про запас — такие можно оставить осознанно.")
+    if len(unused) > 20:
+        add(findings,
+            id="unused_export_many", severity="medium",
+            title=f"Неиспользуемых экспортов много: {len(unused)}",
+            where="проект целиком",
+            what=f"Показаны первые 20 из {len(unused)}.",
+            why="Такой объём означает, что публичная поверхность кода намного больше, чем реально нужно проекту.",
+            fix="Пройдите по папкам и оставьте экспортируемым только то, что зовут снаружи.")
+
+
+def check_orphan_routes(root: Path, findings: list, files: dict[str, str]) -> None:
+    """Маршрут объявлен, но обращений к нему в проекте не видно."""
+    routes: dict[str, str] = {}
+    for rel, text in files.items():
+        if TEST_LIKE.search(rel):
+            continue
+        for m in ROUTE_PATH.finditer(text):
+            path_value = (m.group(1) or m.group(2) or "").strip()
+            if len(path_value) > 2 and path_value not in {"/", "/*"}:
+                routes.setdefault(path_value, f"{rel}:{line_no(text, m.start())}")
+        for m in TRPC_PROC.finditer(text):
+            routes.setdefault(f"trpc:{m.group(1)}", f"{rel}:{line_no(text, m.start())}")
+
+    for route, where in list(routes.items())[:30]:
+        home = where.split(":")[0]
+        needle = route.split(":", 1)[1] if route.startswith("trpc:") else route
+        called = any(
+            rel != home and needle in text
+            for rel, text in files.items()
+        )
+        if called:
+            continue
+        add(findings,
+            id="orphan_route", severity="medium",
+            title=f"К маршруту `{route}` обращений не видно",
+            where=where,
+            what="Маршрут объявлен, но нигде в проекте нет вызова по этому адресу.",
+            why="Забытый маршрут остаётся рабочей дверью: он отвечает на запросы, но его никто не проверяет "
+                "и не помнит, какие проверки прав там были. Именно такие адреса находят перебором и используют "
+                "в обход интерфейса.",
+            fix="Проверьте, не зовут ли адрес снаружи — из мобильного приложения, чужого сервиса, вебхука. "
+                "Если нет, удалите маршрут; если да, задокументируйте и проверьте на нём авторизацию.")
+
+
+def check_debug_output(root: Path, findings: list, files: dict[str, str]) -> None:
+    hits: list[str] = []
+    for rel, text in files.items():
+        if TEST_LIKE.search(rel) or STANDALONE.search(rel):
+            continue
+        for m in DEBUG_PRINT.finditer(text):
+            hits.append(f"{rel}:{line_no(text, m.start())}")
+    if len(hits) >= 5:
+        add(findings,
+            id="debug_output", severity="low",
+            title=f"Отладочный вывод остался в коде: {len(hits)} мест",
+            where=", ".join(hits[:8]) + (" …" if len(hits) > 8 else ""),
+            what="Вызовы console.log и print разбросаны по рабочему коду.",
+            why="Отладочный вывод пишет в журнал то, о чём не думали как о публичном: идентификаторы, куски "
+                "запросов, иногда токены. Плюс он замедляет работу и мешает читать настоящие сообщения об ошибках.",
+            fix="Уберите отладочные вызовы или замените на журналирование с уровнями, чтобы лишнее выключалось настройкой.")
+
+
+def check_oversized(root: Path, findings: list, files: dict[str, str]) -> None:
+    """Раздутые файлы и длинные функции — из наших лимитов размера."""
+    for rel, text in files.items():
+        if TEST_LIKE.search(rel):
+            continue
+        lines = text.count("\n") + 1
+        if lines > 600:
+            add(findings,
+                id="oversized_file", severity="medium",
+                title=f"Файл вырос до {lines} строк",
+                where=rel,
+                what="Превышен предел в 600 строк, за которым файл перестают читать целиком.",
+                why="В таком файле правки делают вслепую, по поиску. Именно так рядом с рабочим кодом появляются "
+                    "забытые куски и вторые реализации того же самого — а проверки прав теряются при переносе.",
+                fix="Разделите по смыслу задач, а не по техническим слоям: отдельный файл на область ответственности.")
+
+
 SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 SEV_LABEL = {"critical": "КРИТИЧНО", "high": "ВЫСОКИЙ", "medium": "СРЕДНИЙ", "low": "НИЗКИЙ"}
 
@@ -309,7 +440,8 @@ def main() -> int:
     files = {str(p.relative_to(root)): t for p, t in iter_code_files(root)}
     findings: list = []
     for check in (check_orphan_files, check_backup_copies, check_stubs_and_todo,
-                  check_commented_blocks, check_unreachable, check_unused_deps):
+                  check_commented_blocks, check_unreachable, check_unused_deps,
+                  check_unused_exports, check_orphan_routes, check_debug_output, check_oversized):
         try:
             check(root, findings, files)
         except Exception as exc:
