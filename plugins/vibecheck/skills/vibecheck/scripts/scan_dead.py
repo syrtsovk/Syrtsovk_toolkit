@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -62,18 +63,52 @@ PY_FROM = re.compile(r"(?m)^\s*from\s+([.\w]+)\s+import\s+([^\n#]+)")
 PY_IMPORT = re.compile(r"(?m)^\s*import\s+([^\n#]+)")
 
 
+def iter_code_paths(root: Path):
+    """Пути к файлам с кодом. В пропускаемые каталоги не спускаемся вовсе —
+    иначе обход материализует всё содержимое node_modules и ест память."""
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        for name in sorted(filenames):
+            path = Path(dirpath) / name
+            if path.suffix.lower() in CODE_EXT:
+                yield path
+
+
 def iter_code_files(root: Path):
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix.lower() not in CODE_EXT:
-            continue
-        if any(part in SKIP_DIRS for part in path.parts):
-            continue
+    for path in iter_code_paths(root):
         try:
             if path.stat().st_size > MAX_FILE_BYTES:
                 continue
             yield path, path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
+
+
+class LazyFiles:
+    """Ведёт себя как словарь «путь → текст», но держит в памяти только пути.
+
+    Текст каждого файла читается на время одной проверки и сразу отпускается.
+    На проекте в несколько тысяч файлов это разница между полугигабайтом
+    и единицами мегабайт.
+    """
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.names = [str(p.relative_to(root)) for p in iter_code_paths(root)]
+
+    def items(self):
+        for path, text in iter_code_files(self.root):
+            yield str(path.relative_to(self.root)), text
+
+    def values(self):
+        for _, text in self.items():
+            yield text
+
+    def __iter__(self):
+        return iter(self.names)
+
+    def __len__(self) -> int:
+        return len(self.names)
 
 
 def line_no(text: str, pos: int) -> int:
@@ -243,14 +278,22 @@ def check_unused_deps(root: Path, findings: list, files: dict[str, str]) -> None
     deps = list((data.get("dependencies") or {}).keys())
     if not deps:
         return
-    corpus = "\n".join(files.values())
     config_text = ""
     for name in ("next.config.js", "next.config.mjs", "vite.config.ts", "vite.config.js",
                  "tailwind.config.js", "tailwind.config.ts", "postcss.config.js"):
         candidate = root / name
         if candidate.exists():
             config_text += candidate.read_text(encoding="utf-8", errors="ignore")
-    unused = [d for d in deps if d not in corpus and d not in config_text and d.split("/")[-1] not in corpus]
+
+    # Ищем упоминания пакетов за один проход, не склеивая проект в одну строку.
+    seen: set[str] = set()
+    for _, text in files.items():
+        for dep in deps:
+            if dep in seen:
+                continue
+            if dep in text or dep.split("/")[-1] in text:
+                seen.add(dep)
+    unused = [d for d in deps if d not in seen and d not in config_text]
     if unused:
         add(findings,
             id="unused_deps", severity="low",
@@ -289,18 +332,18 @@ def check_unused_exports(root: Path, findings: list, files: dict[str, str]) -> N
                     if clean:
                         exported.setdefault(clean, f"{rel}:{line_no(text, m.start())}")
 
-    unused = []
-    for name, where in exported.items():
-        if len(name) < 3:
-            continue
-        home = where.split(":")[0]
-        # ищем упоминание имени в любом другом файле проекта
-        used_elsewhere = any(
-            rel != home and re.search(rf"\b{re.escape(name)}\b", text)
-            for rel, text in files.items()
-        )
-        if not used_elsewhere:
-            unused.append((name, where))
+    # Второй проход: один раз по файлам, отмечаем имена, которые где-то зовут.
+    # Перебирать файлы заново на каждое имя нельзя — это чтение диска в квадрате.
+    candidates = {n: w for n, w in exported.items() if len(n) >= 3}
+    used: set[str] = set()
+    for rel, text in files.items():
+        for name in candidates:
+            if name in used or candidates[name].split(":")[0] == rel:
+                continue
+            if name in text and re.search(rf"\b{re.escape(name)}\b", text):
+                used.add(name)
+
+    unused = [(n, w) for n, w in candidates.items() if n not in used]
 
     for name, where in unused[:20]:
         add(findings,
@@ -337,14 +380,19 @@ def check_orphan_routes(root: Path, findings: list, files: dict[str, str]) -> No
         for m in TRPC_PROC.finditer(text):
             routes.setdefault(f"trpc:{m.group(1)}", f"{rel}:{line_no(text, m.start())}")
 
-    for route, where in list(routes.items())[:30]:
-        home = where.split(":")[0]
-        needle = route.split(":", 1)[1] if route.startswith("trpc:") else route
-        called = any(
-            rel != home and needle in text
-            for rel, text in files.items()
-        )
-        if called:
+    # Тот же приём: один проход по файлам вместо перебора файлов на каждый маршрут.
+    checked = dict(list(routes.items())[:30])
+    called: set[str] = set()
+    for rel, text in files.items():
+        for route, where in checked.items():
+            if route in called or where.split(":")[0] == rel:
+                continue
+            needle = route.split(":", 1)[1] if route.startswith("trpc:") else route
+            if needle in text:
+                called.add(route)
+
+    for route, where in checked.items():
+        if route in called:
             continue
         add(findings,
             id="orphan_route", severity="medium",
@@ -437,7 +485,7 @@ def main() -> int:
         print(f"Не папка: {root}", file=sys.stderr)
         return 1
 
-    files = {str(p.relative_to(root)): t for p, t in iter_code_files(root)}
+    files = LazyFiles(root)
     findings: list = []
     for check in (check_orphan_files, check_backup_copies, check_stubs_and_todo,
                   check_commented_blocks, check_unreachable, check_unused_deps,

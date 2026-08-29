@@ -1,0 +1,10 @@
+{
+  "name": "vibecheck",
+  "version": "1.0.0",
+  "description": "Аудит проекта: утечки ключей, дыры в безопасности и мёртвый код. Единый отчёт по последствиям — что чинить сегодня, что на неделе, что когда дойдут руки. Детерминированные python-скрипты без зависимостей плюс проход модели по участкам.",
+  "author": {
+    "name": "Kirill Syrtsov",
+    "url": "https://github.com/syrtsovk"
+  },
+  "keywords": ["security", "audit", "secrets", "dead-code", "vibe-coding", "pre-deploy", "russian"]
+}

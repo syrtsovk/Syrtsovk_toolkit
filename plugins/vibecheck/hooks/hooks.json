@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/block_secrets.py\"",
+            "timeout": 5,
+            "statusMessage": "vibecheck: проверка на ключи"
+          }
+        ]
+      }
+    ]
+  }
+}

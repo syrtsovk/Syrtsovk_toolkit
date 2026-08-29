@@ -1,0 +1,15 @@
+{
+  "name": "syrtsovk-toolkit",
+  "owner": {
+    "name": "Kirill Syrtsov",
+    "url": "https://github.com/syrtsovk"
+  },
+  "plugins": [
+    {
+      "name": "vibecheck",
+      "source": "./plugins/vibecheck",
+      "description": "Аудит проекта: утечки ключей, дыры в безопасности и мёртвый код. Отчёт по последствиям + крючок, который не даёт записать ключ в код",
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -70,7 +71,7 @@ SECRETS = [
      re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----")),
     ("db_url_pass", "critical", "строка подключения к базе с паролем",
      re.compile(r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^\s:@/\"']{2,}:[^\s:@/\"']{4,}@")),
-    ("generic_secret", "high", "строку, похожую на секрет",
+    ("generic_secret", "high", "строка, похожая на секрет",
      re.compile(r"""(?i)\b(api[_-]?key|apikey|secret|password|passwd|token|access[_-]?key)\b\s*[:=]\s*["'][^"'\s${}]{16,}["']""")),
 ]
 
@@ -272,19 +273,18 @@ def is_pattern_declaration(text: str, pos: int) -> bool:
 
 
 def iter_files(root: Path):
-    for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
-        if any(part in SKIP_DIRS for part in path.parts):
-            continue
-        if path.suffix.lower() not in TEXT_EXT and path.name not in {".env", "Dockerfile", "docker-compose.yml"}:
-            continue
-        try:
-            if path.stat().st_size > MAX_FILE_BYTES:
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        for name in sorted(filenames):
+            path = Path(dirpath) / name
+            if path.suffix.lower() not in TEXT_EXT and not path.name.startswith((".env", "Dockerfile", "docker-compose")):
                 continue
-            yield path, path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
+            try:
+                if path.stat().st_size > MAX_FILE_BYTES:
+                    continue
+                yield path, path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
 
 
 def add(findings, *, id, severity, title, where, what, why, fix):
@@ -429,16 +429,27 @@ def check_code_rules(root: Path, findings: list) -> None:
 
 
 def check_auth_and_cost(root: Path, findings: list) -> None:
-    files: dict[str, str] = {}
-    for path, text in iter_files(root):
-        if path.suffix.lower() in {".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".rb"}:
-            files[str(path.relative_to(root))] = text
-    if not files:
-        return
-    corpus = "\n".join(files.values()).lower()
-    has_rate_limit = any(lib in corpus for lib in RATE_LIMIT_LIB)
+    """Два прохода по диску вместо загрузки проекта в память.
 
-    for rel, text in files.items():
+    Первый выясняет один факт — есть ли в проекте ограничитель частоты.
+    Второй идёт по файлам и после каждого отпускает текст.
+    """
+    suffixes = {".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".rb"}
+
+    has_rate_limit = False
+    for path, text in iter_files(root):
+        if path.suffix.lower() in suffixes:
+            low = text.lower()
+            if any(lib in low for lib in RATE_LIMIT_LIB):
+                has_rate_limit = True
+                break
+
+    def code_files():
+        for path, text in iter_files(root):
+            if path.suffix.lower() in suffixes:
+                yield str(path.relative_to(root)), text
+
+    for rel, text in code_files():
         if EXAMPLE_FILE.search(rel):
             continue
         m = SENSITIVE_ROUTE.search(text)
@@ -454,7 +465,7 @@ def check_auth_and_cost(root: Path, findings: list) -> None:
                     "Порог на вход — порядка 5 попыток в минуту на адрес.")
             break
 
-    for rel, text in files.items():
+    for rel, text in code_files():
         if EXAMPLE_FILE.search(rel) or not LLM_CALL.search(text):
             continue
         m = LLM_CALL.search(text)

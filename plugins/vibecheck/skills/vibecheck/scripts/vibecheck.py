@@ -17,6 +17,7 @@ import argparse
 import json
 import subprocess
 import sys
+from fnmatch import fnmatch
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -93,6 +94,72 @@ GROUP_FROM = 3
 GROUP_SHOW = 5
 # Потолок записей в теле отчёта; остальное уходит в приложение.
 BODY_LIMIT = 30
+
+
+BASELINE_FILE = ".vibecheck-baseline.json"
+IGNORE_FILE = ".vibecheckignore"
+
+
+def finding_key(f: dict) -> str:
+    """Опознаём находку так, чтобы сдвиг строк её не «обновлял».
+
+    Номер строки в ключ не входит: одна добавленная строка выше по файлу
+    иначе превращала бы все находки в нём в новые.
+    """
+    return f"{f['id']}|{f['where'].split(':')[0].strip()}"
+
+
+def load_ignore(root: Path) -> list[tuple[str | None, str | None]]:
+    """Читает .vibecheckignore. Строка — это `id`, `путь`, либо `id:путь`.
+
+    Пути сравниваются как шаблоны: src/components/ui/* закрывает всю папку.
+    """
+    path = root / IGNORE_FILE
+    if not path.exists():
+        return []
+    rules: list[tuple[str | None, str | None]] = []
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = line.split("#")[0].strip()
+        if not line:
+            continue
+        if ":" in line:
+            fid, glob = line.split(":", 1)
+            rules.append((fid.strip() or None, glob.strip() or None))
+        elif "/" in line or "*" in line or "." in line:
+            rules.append((None, line))
+        else:
+            rules.append((line, None))
+    return rules
+
+
+def is_ignored(f: dict, rules: list[tuple[str | None, str | None]]) -> bool:
+    place = f["where"].split(":")[0].strip()
+    for fid, glob in rules:
+        if fid and f["id"] != fid:
+            continue
+        if glob and not (fnmatch(place, glob) or fnmatch(place, glob.rstrip("/") + "/*")):
+            continue
+        return True
+    return False
+
+
+def load_baseline(root: Path) -> set[str] | None:
+    path = root / BASELINE_FILE
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return set(data.get("keys", []))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+
+
+def save_baseline(root: Path, findings: list[dict]) -> int:
+    keys = sorted({finding_key(f) for f in findings})
+    (root / BASELINE_FILE).write_text(
+        json.dumps({"version": 1, "keys": keys}, ensure_ascii=False, indent=1),
+        encoding="utf-8")
+    return len(keys)
 
 
 def run_scanner(script: str, root: Path) -> list[dict]:
@@ -185,7 +252,8 @@ def render_finding(f: dict) -> list[str]:
     ]
 
 
-def build_report(findings: list[dict], root: Path, scanned: dict) -> str:
+def build_report(findings: list[dict], root: Path, scanned: dict,
+                 fresh_count: int | None = None, ignored_count: int = 0) -> str:
     counts = {s: sum(1 for f in findings if f["severity"] == s) for s in SEV_ORDER}
     raw_total = sum(f.get("grouped", 1) for f in findings)
 
@@ -201,6 +269,14 @@ def build_report(findings: list[dict], root: Path, scanned: dict) -> str:
         f"средних {counts['medium']}, низких {counts['low']}.",
         "",
     ]
+    if fresh_count is not None:
+        lines += [
+            f"**С прошлой проверки появилось: {fresh_count}.** "
+            + ("Остальное было и раньше." if fresh_count else "Нового нет."),
+            "",
+        ]
+    if ignored_count:
+        lines += [f"Заглушено через `{IGNORE_FILE}`: {ignored_count}.", ""]
 
     urgent = [f for f in findings if f["severity"] in {"critical", "high"}][:3]
     if urgent:
@@ -265,6 +341,10 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="машинный вывод для скилла")
     parser.add_argument("--only", metavar="LIST",
                         help="через запятую: money,data,downtime,wrong,growth")
+    parser.add_argument("--save-baseline", action="store_true",
+                        help="запомнить текущие находки как отправную точку")
+    parser.add_argument("--new", action="store_true",
+                        help="показать только то, чего не было при прошлой проверке")
     args = parser.parse_args()
 
     root = Path(args.path).resolve()
@@ -282,6 +362,23 @@ def main() -> int:
                   f"Доступны: {', '.join(IMPACT_ORDER)}", file=sys.stderr)
             return 1
         findings = [f for f in findings if f["impact"] in wanted]
+
+    ignore_rules = load_ignore(root)
+    ignored = [f for f in findings if is_ignored(f, ignore_rules)]
+    findings = [f for f in findings if f not in ignored]
+
+    if args.save_baseline:
+        saved = save_baseline(root, findings)
+        print(f"Отправная точка записана: {saved} находок в {BASELINE_FILE}")
+        print("Дальше запускай с --new — покажет только то, что появилось после этого момента.")
+        return 0
+
+    baseline = load_baseline(root)
+    fresh: list[dict] = []
+    if baseline is not None:
+        fresh = [f for f in findings if finding_key(f) not in baseline]
+        if args.new:
+            findings = fresh
 
     findings = group_repeats(findings)
     findings.sort(key=sort_key)
@@ -301,12 +398,17 @@ def main() -> int:
         print()
         return 0
 
-    report = build_report(findings, root, scanned)
+    report = build_report(findings, root, scanned, len(fresh) if baseline is not None else None,
+                          len(ignored))
     if args.report:
         Path(args.report).write_text(report, encoding="utf-8")
 
     raw_total = sum(f.get("grouped", 1) for f in findings)
     print(f"vibecheck: {verdict(findings)}")
+    if baseline is not None:
+        print(f"С прошлой проверки появилось: {len(fresh)}")
+    if ignored:
+        print(f"Заглушено через {IGNORE_FILE}: {len(ignored)}")
     print(f"Записей: {len(findings)} (за ними {raw_total} {places_word(raw_total)})")
     for impact in IMPACT_ORDER:
         n = sum(1 for f in findings if f["impact"] == impact)
