@@ -38,6 +38,15 @@ EXAMPLE_FILE = re.compile(
     r"(\.example|\.sample|\.template|\.dist|\.test\.|_test\.|test_|\.spec\.|"
     r"\.lock$|lock\.json$|\.md$|\.snap$|fixtures?/|mocks?/|__tests__/)"
 )
+# Файлы с кодом. Правила ниже, про вызовы в коде, применяем только к ним:
+# в данных, описаниях и журналах такая же строка — это текст, а не вызов.
+CODE_FILES = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".rb", ".php",
+              ".go", ".java", ".kt", ".cs", ".rs", ".swift", ".vue", ".svelte", ".astro"}
+CODE_ONLY = {"sql_fstring", "sql_template", "jwt_none", "jwt_no_expiry", "weak_hash_password",
+             "shell_injection", "pickle_load", "path_traversal", "secret_in_log", "eval_use",
+             "role_from_client", "idor_suspect", "upload_unbounded", "prisma_unsafe",
+             "swallowed_error", "xss_html"}
+
 CLIENT_DIR = re.compile(r"(^|/)(src|app|pages|components|public|client|frontend|www)(/|$)")
 SERVER_HINT = re.compile(r"(^|/)(api|server|backend|routes?|handlers?|functions?|lambda|worker)s?(/|$)")
 
@@ -384,6 +393,8 @@ def check_code_rules(root: Path, findings: list) -> None:
             continue
         for rid, severity, title, pattern, why, fix, exts in CODE_RULES:
             if exts and path.suffix.lower() not in exts:
+                continue
+            if rid in CODE_ONLY and path.suffix.lower() not in CODE_FILES:
                 continue
             for m in pattern.finditer(text):
                 if is_commented(text, m.start()) or is_pattern_declaration(text, m.start()):
