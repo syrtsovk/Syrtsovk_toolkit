@@ -17,3 +17,7 @@
 # Logs / tmp
 *.log
 tmp/
+
+# Секреты
+.env
+.env.*.local

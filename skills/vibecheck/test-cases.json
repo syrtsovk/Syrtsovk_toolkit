@@ -1,0 +1,96 @@
+{
+  "skill_name": "vibecheck",
+  "generated_by": "pluginmaker/v1",
+  "generated_at": "2026-08-29T00:00:00Z",
+  "positive_cases": [
+    {
+      "id": "p1",
+      "prompt": "Проверь мой проект на безопасность перед деплоем",
+      "expected_trigger": true,
+      "rationale": "Прямое совпадение с триггерами «проверить проект на безопасность» и «перед деплоем»"
+    },
+    {
+      "id": "p2",
+      "prompt": "Есть ли у меня в коде захардкоженные ключи?",
+      "expected_trigger": true,
+      "rationale": "Триггер «найти захардкоженные ключи и секреты» — основная работа сканера секретов"
+    },
+    {
+      "id": "p3",
+      "prompt": "Хочу выложить репо в открытый доступ, безопасно ли",
+      "expected_trigger": true,
+      "rationale": "Триггер «безопасно ли публиковать репозиторий»"
+    },
+    {
+      "id": "p4",
+      "prompt": "Найди мёртвый код в проекте",
+      "expected_trigger": true,
+      "rationale": "Триггер «найти мёртвый или неиспользуемый код»"
+    },
+    {
+      "id": "p5",
+      "prompt": "Сделай security audit этого приложения",
+      "expected_trigger": true,
+      "rationale": "Англоязычный триггер security audit, указан в описании"
+    },
+    {
+      "id": "p6",
+      "prompt": "Проверь, нет ли дыр в моём боте",
+      "expected_trigger": true,
+      "rationale": "Триггер «найти дыры» — формулировка вайбкодера без специальных терминов"
+    },
+    {
+      "id": "p7",
+      "prompt": "Почисти проект от заброшенных файлов и лишних зависимостей",
+      "expected_trigger": true,
+      "rationale": "Триггер «почистить проект от заброшенных файлов», работа сканера мёртвого кода"
+    },
+    {
+      "id": "p8",
+      "prompt": "scan for vulnerabilities in this repo",
+      "expected_trigger": true,
+      "rationale": "Англоязычный триггер scan for vulnerabilities"
+    }
+  ],
+  "negative_cases": [
+    {
+      "id": "n1",
+      "prompt": "Поправь опечатку в заголовке на главной",
+      "expected_trigger": false,
+      "rationale": "Правка одной строки — негативный триггер из описания"
+    },
+    {
+      "id": "n2",
+      "prompt": "Напиши эндпоинт для загрузки аватарки",
+      "expected_trigger": false,
+      "rationale": "Написание новой функциональности, а не проверка готового"
+    },
+    {
+      "id": "n3",
+      "prompt": "Проверь договор на дыры в формулировках",
+      "expected_trigger": false,
+      "rationale": "Лексически близко («проверь на дыры»), но домен — текст, а не код"
+    },
+    {
+      "id": "n4",
+      "prompt": "Запусти /find-bugs по текущей ветке",
+      "expected_trigger": false,
+      "rationale": "Человек явно зовёт другую команду"
+    },
+    {
+      "id": "n5",
+      "prompt": "Почини уязвимости, которые ты нашёл в прошлый раз",
+      "expected_trigger": false,
+      "rationale": "Починка, а не аудит: скилл сообщает о находках и правит код только по отдельной просьбе"
+    }
+  ],
+  "validation_result": {
+    "level_1_lint": "PASS",
+    "level_2_dry_run": {
+      "positive_accuracy": 1.0,
+      "negative_accuracy": 0.8,
+      "overall": "PASS"
+    },
+    "level_3_content_audit": "PASS"
+  }
+}
