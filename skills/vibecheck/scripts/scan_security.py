@@ -70,7 +70,7 @@ SECRETS = [
      re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----")),
     ("db_url_pass", "critical", "строка подключения к базе с паролем",
      re.compile(r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^\s:@/\"']{2,}:[^\s:@/\"']{4,}@")),
-    ("generic_secret", "high", "похоже на захардкоженный секрет",
+    ("generic_secret", "high", "строку, похожую на секрет",
      re.compile(r"""(?i)\b(api[_-]?key|apikey|secret|password|passwd|token|access[_-]?key)\b\s*[:=]\s*["'][^"'\s${}]{16,}["']""")),
 ]
 
@@ -87,6 +87,8 @@ SANITIZED = re.compile(r"(?i)(sanitiz|dompurify|purify|escapeHtml|clean_?html|bl
 LOCAL_HOST = re.compile(r"(?i)@(localhost|127\.0\.0\.1|0\.0\.0\.0|host\.docker\.internal|db|database|"
                         r"postgres|mysql|mongo|redis)[:/]")
 CI_PATH = re.compile(r"(?i)(^|/)(\.github|\.gitlab|\.circleci|ci|\.devcontainer)/")
+# Замороженный код: утечки тут ищем (ключ есть ключ), а правила про работу кода — нет.
+ARCHIVE_PATH = re.compile(r"(?i)(^|/)(archive|legacy|deprecated|_old|old|backup)s?(/|$)")
 
 # Значения-пустышки, на которые не стоит ругаться.
 PLACEHOLDER = re.compile(
@@ -219,7 +221,10 @@ CODE_RULES = [
 PUBLIC_ENV_PREFIX = re.compile(r"\b(NEXT_PUBLIC_|VITE_|REACT_APP_|PUBLIC_|EXPO_PUBLIC_|GATSBY_)[A-Z0-9_]*"
                                r"(KEY|SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL)")
 PAID_API_FROM_CLIENT = re.compile(r"https?://api\.(openai|anthropic|stripe|openrouter)\.(com|ai)")
-LLM_CALL = re.compile(r"(?i)(openai|anthropic|\.chat\.completions|messages\.create|generateContent|openrouter)")
+# Имя сервиса должно быть обращением (openai.…, anthropic(…)), а не просто словом:
+# иначе срабатывает на строки в словарях и списках.
+LLM_CALL = re.compile(r"(?i)((openai|anthropic|openrouter|genai)\s*[.(]|\.chat\.completions|"
+                      r"messages\.create|generateContent|chat\.completions\.create)")
 ROUTE_DEF = re.compile(r"(?i)(app\.(post|get|put|patch|delete)|router\.(post|get|put|patch|delete)|"
                        r"@(app|router)\.(post|get)|export (async )?function (POST|GET)|def \w+\(request)")
 AUTH_HINT = re.compile(r"(?i)(auth|verifyToken|requireUser|getSession|getServerSession|middleware|authorize|"
@@ -300,9 +305,15 @@ def git_tracked(root: Path) -> set[str]:
 
 
 def check_secrets(root: Path, findings: list) -> None:
+    tracked = git_tracked(root)
+    has_git = (root / ".git").exists()
     for path, text in iter_files(root):
         rel = str(path.relative_to(root))
         if EXAMPLE_FILE.search(rel):
+            continue
+        # .env — законное место для ключей: находкой это становится, только когда
+        # файл попал в git. Без git мы этого не знаем, поэтому там проверяем как обычно.
+        if path.name.startswith(".env") and has_git and rel not in tracked:
             continue
         for sid, severity, name, pattern in SECRETS:
             for m in pattern.finditer(text):
@@ -387,15 +398,22 @@ def check_client_exposure(root: Path, findings: list) -> None:
 
 
 def check_code_rules(root: Path, findings: list) -> None:
+    tracked = git_tracked(root)
+    has_git = (root / ".git").exists()
     for path, text in iter_files(root):
         rel = str(path.relative_to(root))
         if EXAMPLE_FILE.search(rel):
+            continue
+        # .env вне git — личные настройки разработчика, а не рабочий код
+        if path.name.startswith(".env") and has_git and rel not in tracked:
             continue
         for rid, severity, title, pattern, why, fix, exts in CODE_RULES:
             if exts and path.suffix.lower() not in exts:
                 continue
             if rid in CODE_ONLY and path.suffix.lower() not in CODE_FILES:
                 continue
+            if rid in CODE_ONLY and ARCHIVE_PATH.search(rel):
+                continue        # замороженный код не выполняется — чинить там нечего
             for m in pattern.finditer(text):
                 if is_commented(text, m.start()) or is_pattern_declaration(text, m.start()):
                     continue
