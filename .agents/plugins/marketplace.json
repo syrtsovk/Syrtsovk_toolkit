@@ -1,0 +1,19 @@
+{
+  "name": "syrtsovk-toolkit",
+  "interface": {
+    "displayName": "Syrtsovk Toolkit"
+  },
+  "plugins": [
+    {
+      "name": "vibecheck",
+      "source": {
+        "source": "local",
+        "path": "./plugins/vibecheck"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

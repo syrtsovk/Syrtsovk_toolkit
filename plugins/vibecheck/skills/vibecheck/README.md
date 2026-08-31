@@ -89,6 +89,17 @@ python3 skills/vibecheck/scripts/vibecheck.py /путь/к/проекту --repo
 
 Так ставится и скилл, и защитный крючок (о нём ниже). Обновления приходят через `/plugin`.
 
+### Codex — тоже одной командой
+
+```bash
+codex plugin marketplace add https://github.com/syrtsovk/Syrtsovk_toolkit
+codex plugin add vibecheck@syrtsovk-toolkit
+```
+
+Скилл и все скрипты работают одинаково. Крючок, блокирующий запись ключа, — только в Claude Code: у Codex своя система событий.
+
+Вручную в Codex: скопировать папку `plugins/vibecheck/skills/vibecheck` в `~/.codex/skills/`.
+
 ### Claude Code — вручную, без плагина
 
 ```bash
@@ -101,7 +112,7 @@ ln -s ~/syrtsovk-toolkit/skills/vibecheck ~/.claude/skills/vibecheck
 
 ### Claude.ai (web / desktop)
 
-Заархивируй папку `skills/vibecheck` в ZIP и загрузи: **Настройки → Возможности → Skills**. Нужно включённое выполнение кода — скрипты запускаются в песочнице.
+Заархивируй папку `plugins/vibecheck/skills/vibecheck` в ZIP и загрузи: **Настройки → Возможности → Skills**. Нужно включённое выполнение кода — скрипты запускаются в песочнице.
 
 ---
 

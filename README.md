@@ -57,12 +57,19 @@ _Slash-команды для Claude Code — скоро добавлю._
 
 ### 0. Плагином — одной командой (пока только `vibecheck`)
 
+**Claude Code:**
 ```
 /plugin marketplace add syrtsovk/Syrtsovk_toolkit
 /plugin install vibecheck@syrtsovk-toolkit
 ```
 
-Ставит скилл вместе с защитным крючком и обновляется через `/plugin`. Остальные скиллы пока подключаются вручную — способом ниже.
+**Codex:**
+```bash
+codex plugin marketplace add https://github.com/syrtsovk/Syrtsovk_toolkit
+codex plugin add vibecheck@syrtsovk-toolkit
+```
+
+Ставит скилл и обновляется одной командой. В Claude Code вдобавок включается крючок, который не даёт записать ключ в код. Остальные скиллы пока подключаются вручную — способом ниже.
 
 ### 1. Claude Code (CLI)
 
