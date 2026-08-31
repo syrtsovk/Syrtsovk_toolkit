@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 from fnmatch import fnmatch
@@ -90,6 +92,16 @@ SEV_LABEL = {"critical": "КРИТИЧНО", "high": "ВЫСОКИЙ", "medium":
 
 # Начиная с этого числа одинаковые находки складываются в одну запись.
 GROUP_FROM = 3
+# У этих находок цифры и текст разные, поэтому «одно и то же в N местах» —
+# неправда. Их сводим в одну запись с перечнем, а не складываем как повторы.
+SUMMARIZE = {
+    "oversized_file": "Файлы разрослись больше 600 строк",
+    "orphan_file": "Файлы, на которые никто не ссылается",
+    "unused_export": "Экспорты, которые никем не используются",
+}
+# А эти уже сами по себе сводные — трогать нечего.
+NEVER_GROUP = {"orphan_many", "unused_export_many", "todo_marks",
+               "debug_output", "unused_deps", "vulnerable_deps"}
 # Сколько мест показать внутри сложенной записи.
 GROUP_SHOW = 5
 # Потолок записей в теле отчёта; остальное уходит в приложение.
@@ -154,12 +166,69 @@ def load_baseline(root: Path) -> set[str] | None:
         return None
 
 
-def save_baseline(root: Path, findings: list[dict]) -> int:
+def save_baseline(root: Path, findings: list[dict]) -> tuple[int, bool]:
+    """Пишет отправную точку и сам прикрывает её от коммита.
+
+    Файл служебный и у каждого свой: уехав в общую историю, он будет
+    конфликтовать у всех подряд.
+    """
     keys = sorted({finding_key(f) for f in findings})
     (root / BASELINE_FILE).write_text(
         json.dumps({"version": 1, "keys": keys}, ensure_ascii=False, indent=1),
         encoding="utf-8")
-    return len(keys)
+
+    ignored = False
+    if (root / ".git").exists():
+        gitignore = root / ".gitignore"
+        current = gitignore.read_text(encoding="utf-8", errors="ignore") if gitignore.exists() else ""
+        if BASELINE_FILE not in current:
+            with gitignore.open("a", encoding="utf-8") as fh:
+                if current and not current.endswith("\n"):
+                    fh.write("\n")
+                fh.write(f"\n# служебные файлы vibecheck\n{BASELINE_FILE}\n")
+            ignored = True
+    return len(keys), ignored
+
+
+def count_scanned(root: Path) -> dict:
+    """Что и сколько реально просмотрено.
+
+    Сканер секретов ходит шире, чем по коду: настройки, скрипты выкатки,
+    docker-файлы. Считать только код — занижать охват и путать человека.
+    """
+    skip = {".git", "node_modules", ".next", "dist", "build", ".venv", "venv",
+            "__pycache__", "vendor", "target", ".turbo", ".cache", ".mypy_cache"}
+    code_ext = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".vue",
+                ".svelte", ".go", ".rb", ".php", ".java", ".kt", ".rs", ".cs", ".swift"}
+    code = text = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip]
+        for name in filenames:
+            suffix = Path(name).suffix.lower()
+            if suffix in code_ext:
+                code += 1
+                text += 1
+            elif suffix in {".yml", ".yaml", ".json", ".toml", ".ini", ".cfg", ".conf",
+                            ".sh", ".bash", ".zsh", ".sql", ".tf", ".xml", ".properties"} \
+                    or name.startswith((".env", "Dockerfile", "docker-compose")):
+                text += 1
+
+    def rule_count(script: str) -> int:
+        """Виды находок сканера: и объявленные в таблицах, и заданные по месту."""
+        try:
+            src = (HERE / script).read_text(encoding="utf-8")
+        except OSError:
+            return 0
+        ids = set(re.findall(r'id="(\w+)"', src))
+        ids |= set(re.findall(r'\(\s*"(\w+)",\s*"(?:critical|high|medium|low)"', src))
+        return len(ids)
+
+    return {
+        "code_files": code,
+        "text_files": text,
+        "security_rules": rule_count("scan_security.py"),
+        "dead_rules": rule_count("scan_dead.py"),
+    }
 
 
 def run_scanner(script: str, root: Path) -> list[dict]:
@@ -189,17 +258,26 @@ def group_repeats(findings: list[dict]) -> list[dict]:
 
     result: list[dict] = []
     for fid, group in by_id.items():
-        if len(group) < GROUP_FROM:
+        if len(group) < GROUP_FROM or fid in NEVER_GROUP:
             result.extend(group)
             continue
         group.sort(key=lambda f: SEV_ORDER.get(f["severity"], 9))
         head = dict(group[0])
         places = [f["where"] for f in group]
-        head["title"] = f"{head['title']} — {len(group)} {places_word(len(group))}"
-        head["where"] = "; ".join(places[:GROUP_SHOW]) + (
-            f" … и ещё {len(places) - GROUP_SHOW}" if len(places) > GROUP_SHOW else "")
-        head["what"] = (f"Одно и то же повторяется в {len(group)} местах проекта. "
-                        f"{head['what']}")
+
+        if fid in SUMMARIZE:
+            # каждая находка со своими цифрами — перечисляем, а не обобщаем
+            head["title"] = f"{SUMMARIZE[fid]} — {len(group)}"
+            head["where"] = "; ".join(places[:GROUP_SHOW]) + (
+                f" … и ещё {len(places) - GROUP_SHOW}" if len(places) > GROUP_SHOW else "")
+            head["what"] = (f"Под это правило попало {len(group)} разных мест, "
+                            f"у каждого свои цифры. Полный перечень — в приложении к отчёту.")
+        else:
+            head["title"] = f"{head['title']} — {len(group)} {places_word(len(group))}"
+            head["where"] = "; ".join(places[:GROUP_SHOW]) + (
+                f" … и ещё {len(places) - GROUP_SHOW}" if len(places) > GROUP_SHOW else "")
+            head["what"] = (f"Одно и то же повторяется в {len(group)} местах проекта. "
+                            f"{head['what']}")
         head["grouped"] = len(group)
         head["all_places"] = places
         result.append(head)
@@ -312,6 +390,17 @@ def build_report(findings: list[dict], root: Path, scanned: dict,
             lines.append(f"- **[{SEV_LABEL[f['severity']]}]** {f['title']} — `{place}` · {f['fix'].split('.')[0]}.")
         lines.append("")
 
+    detailed = [f for f in findings if f.get("all_places") and len(f["all_places"]) > GROUP_SHOW]
+    if detailed:
+        lines += ["## Полные перечни", "",
+                  "Здесь целиком то, что выше показано первыми пятью местами.", ""]
+        for f in detailed:
+            lines.append(f"**{f['title']}**")
+            lines.append("")
+            for place in f["all_places"]:
+                lines.append(f"- `{place}`")
+            lines.append("")
+
     lines += [
         "## Что проверить руками",
         "",
@@ -321,9 +410,11 @@ def build_report(findings: list[dict], root: Path, scanned: dict,
         "",
         "## Что проверено",
         "",
-        f"- файлов просмотрено: {scanned.get('files', '—')}",
-        f"- проверок по безопасности: {scanned.get('security_rules', '—')}, "
-        f"по неиспользуемому коду: {scanned.get('dead_rules', '—')}",
+        f"- просмотрено файлов: {scanned.get('text_files', '—')} "
+        f"(из них с кодом {scanned.get('code_files', '—')}; остальное — настройки, "
+        f"скрипты выкатки, docker-файлы: ключи ищутся и там)",
+        f"- видов находок: {scanned.get('security_rules', '—')} по безопасности, "
+        f"{scanned.get('dead_rules', '—')} по неиспользуемому коду",
         "",
         "Это поиск известных ошибок, а не проверка на проникновение. Скорость работы не измеряется — "
         "для неё нужен профилировщик на живой нагрузке. "
@@ -337,7 +428,10 @@ def build_report(findings: list[dict], root: Path, scanned: dict,
 def main() -> int:
     parser = argparse.ArgumentParser(description="vibecheck — единый отчёт по проекту")
     parser.add_argument("path", nargs="?", default=".", help="папка проекта")
-    parser.add_argument("--report", metavar="FILE", help="куда записать отчёт")
+    parser.add_argument("--report", metavar="FILE", nargs="?", const="",
+                        help="записать отчёт (без значения — vibecheck-report.md в корень проекта)")
+    parser.add_argument("--no-report", action="store_true",
+                        help="не писать файл, только сводка в терминал")
     parser.add_argument("--json", action="store_true", help="машинный вывод для скилла")
     parser.add_argument("--only", metavar="LIST",
                         help="через запятую: money,data,downtime,wrong,growth")
@@ -368,8 +462,10 @@ def main() -> int:
     findings = [f for f in findings if f not in ignored]
 
     if args.save_baseline:
-        saved = save_baseline(root, findings)
+        saved, ignored = save_baseline(root, findings)
         print(f"Отправная точка записана: {saved} находок в {BASELINE_FILE}")
+        if ignored:
+            print(f"Файл служебный, поэтому добавлен в .gitignore — в коммит не уедет.")
         print("Дальше запускай с --new — покажет только то, что появилось после этого момента.")
         return 0
 
@@ -383,15 +479,7 @@ def main() -> int:
     findings = group_repeats(findings)
     findings.sort(key=sort_key)
 
-    scanned = {
-        "files": sum(1 for p in root.rglob("*")
-                     if p.is_file() and p.suffix.lower() in
-                     {".js", ".jsx", ".ts", ".tsx", ".py", ".mjs", ".cjs", ".vue", ".svelte", ".go", ".rb"}
-                     and not any(d in p.parts for d in
-                                 {".git", "node_modules", ".next", "dist", "build", ".venv", "venv"})),
-        "security_rules": 21,
-        "dead_rules": 10,
-    }
+    scanned = count_scanned(root)
 
     if args.json:
         json.dump(findings, sys.stdout, ensure_ascii=False, indent=1)
@@ -400,8 +488,11 @@ def main() -> int:
 
     report = build_report(findings, root, scanned, len(fresh) if baseline is not None else None,
                           len(ignored))
-    if args.report:
-        Path(args.report).write_text(report, encoding="utf-8")
+    report_path = None
+    if not args.no_report:
+        # по умолчанию кладём в проверяемый проект: человек должен знать, где смотреть
+        report_path = Path(args.report) if args.report else root / "vibecheck-report.md"
+        report_path.write_text(report, encoding="utf-8")
 
     raw_total = sum(f.get("grouped", 1) for f in findings)
     print(f"vibecheck: {verdict(findings)}")
@@ -417,8 +508,8 @@ def main() -> int:
     for f in findings[:3]:
         if f["severity"] in {"critical", "high"}:
             print(f"  → {f['title']} — {f['where'].split(';')[0].strip()}")
-    if args.report:
-        print(f"Отчёт: {args.report}")
+    if report_path:
+        print(f"\nПолный отчёт: {report_path}")
     return 0
 
 

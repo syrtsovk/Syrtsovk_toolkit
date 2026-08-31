@@ -83,7 +83,7 @@ python3 skills/vibecheck/scripts/vibecheck.py /путь/к/проекту --repo
 ### Claude Code — одной командой
 
 ```
-/plugin marketplace add syrtsovk/Syrtsovk_toolkit
+/plugin marketplace add https://github.com/syrtsovk/Syrtsovk_toolkit
 /plugin install vibecheck@syrtsovk-toolkit
 ```
 

@@ -573,16 +573,6 @@ def check_dependencies(root: Path, findings: list) -> None:
                 what="Не удалось запустить npm audit (нет npm, нет сети или другая ошибка).",
                 why="Известные дыры в чужих пакетах — самый дешёвый способ попасть в ваш проект, и проверка занимает минуту.",
                 fix="Запустите вручную: npm audit")
-    if (root / "requirements.txt").exists() or (root / "pyproject.toml").exists():
-        add(findings,
-            id="pip_audit_hint", severity="low",
-            title="Python-зависимости стоит проверить на уязвимости",
-            where="requirements.txt" if (root / "requirements.txt").exists() else "pyproject.toml",
-            what="Автоматическая проверка для python в этот сканер не встроена.",
-            why="В библиотеках регулярно находят дыры, и обновление обычно занимает одну команду.",
-            fix="Установите и запустите: pip install pip-audit && pip-audit")
-
-
 SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 SEV_LABEL = {"critical": "КРИТИЧНО", "high": "ВЫСОКИЙ", "medium": "СРЕДНИЙ", "low": "НИЗКИЙ"}
 

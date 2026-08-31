@@ -28,7 +28,10 @@ SKIP_DIRS = {
     ".claude", ".cursor", ".husky",
 }
 CODE_EXT = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".vue", ".svelte",
-            ".go", ".rb", ".php", ".java", ".kt", ".rs", ".cs", ".swift"}
+            ".go", ".rb", ".php", ".java", ".kt", ".rs", ".cs", ".swift",
+            # выкатка и настройки: именно там живут доступы к серверу,
+            # а обход велит смотреть такое первым
+            ".sh", ".bash", ".yml", ".yaml", ".tf", ".sql"}
 
 MAX_ZONES = 25          # больше человек всё равно не удержит
 MIN_ZONE_FILES = 3      # мельче — сливаем в родителя
@@ -45,6 +48,8 @@ ZONE_KINDS = [
                              r"prisma|orm|storage)")),
     ("приём извне", 4, re.compile(r"(?i)(^|/)(api|routes?|endpoints?|handlers?|controllers?|"
                                   r"webhooks?|upload|import|parser)")),
+    ("выкатка и доступы", 4, re.compile(r"(?i)(^|/)(deploy|deployment|infra|infrastructure|"
+                                        r"terraform|ansible|k8s|kubernetes|helm|\.github)(/|$)")),
     ("фон и очереди", 5, re.compile(r"(?i)(^|/)(worker|queue|task|job|cron|scheduler|consumer|celery)")),
     ("внешние сервисы", 6, re.compile(r"(?i)(client|integration|connector|adapter|provider|sdk|"
                                       r"telegram|bitrix|amocrm|openai|anthropic)")),

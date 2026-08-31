@@ -59,7 +59,7 @@ _Slash-команды для Claude Code — скоро добавлю._
 
 **Claude Code:**
 ```
-/plugin marketplace add syrtsovk/Syrtsovk_toolkit
+/plugin marketplace add https://github.com/syrtsovk/Syrtsovk_toolkit
 /plugin install vibecheck@syrtsovk-toolkit
 ```
 
