@@ -38,6 +38,9 @@ PLACEHOLDER = re.compile(r"(?i)(your[_-]?|example|placeholder|changeme|xxxx|dumm
 
 # Файлы, куда ключам класть можно и нужно.
 ALLOWED_FILES = re.compile(r"(?i)(^|/)\.env(\.[a-z]+)?$|\.example$|\.sample$|\.template$")
+# Команда пишет в .env или в файл-пример — это законное место для ключа.
+ALLOWED_ENV_WRITE = re.compile(r"(?i)>>?\s*[\"']?[\w./-]*\.env(\.[a-z]+)?[\"']?\s*$|"
+                               r">>?\s*[\"']?[\w./-]*\.(example|sample|template)[\"']?\s*$")
 
 
 def mask(value: str) -> str:
@@ -52,17 +55,27 @@ def main() -> int:
 
     tool_input = payload.get("tool_input") or {}
     path = tool_input.get("file_path") or ""
+
+    # Write/Edit кладут текст в поля, Bash — в саму команду. Второе тоже проверяем:
+    # файлы часто правят через cat > файл, sed -i, tee, и в таком режиме
+    # защита без этого выключена целиком.
+    command = str(tool_input.get("command") or "")
     content = " ".join(str(tool_input.get(field) or "")
                        for field in ("content", "new_string", "new_str"))
-    if not content or ALLOWED_FILES.search(path):
+    text = f"{content} {command}".strip()
+    if not text:
         return 0
+    # для Bash разрешение по имени файла даём, только если команда пишет ровно в .env
+    if ALLOWED_FILES.search(path) or (command and ALLOWED_ENV_WRITE.search(command)):
+        return 0
+    content = text
 
     for name, pattern in HARD_SECRETS:
         match = pattern.search(content)
         if match and not PLACEHOLDER.search(match.group(0)):
             print(
                 f"vibecheck остановил запись: в тексте {name} — {mask(match.group(0))}\n"
-                f"Файл: {path or '—'}\n\n"
+                f"{'Файл: ' + path if path else 'Команда терминала'}\n\n"
                 "Ключ в коде уезжает вместе с репозиторием и остаётся в истории навсегда.\n"
                 "Положите значение в .env и читайте оттуда, а .env держите в .gitignore.\n"
                 "Если это пример для документации — замените значение на заглушку "

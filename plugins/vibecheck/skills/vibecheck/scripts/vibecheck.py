@@ -94,10 +94,11 @@ SEV_LABEL = {"critical": "КРИТИЧНО", "high": "ВЫСОКИЙ", "medium":
 GROUP_FROM = 3
 # У этих находок цифры и текст разные, поэтому «одно и то же в N местах» —
 # неправда. Их сводим в одну запись с перечнем, а не складываем как повторы.
+# вид находки → (заголовок свода, единица для худшего случая)
 SUMMARIZE = {
-    "oversized_file": "Файлы разрослись больше 600 строк",
-    "orphan_file": "Файлы, на которые никто не ссылается",
-    "unused_export": "Экспорты, которые никем не используются",
+    "oversized_file": ("Файлы разрослись больше 600 строк", "строк"),
+    "orphan_file": ("Файлы, на которые никто не ссылается", ""),
+    "unused_export": ("Экспорты, которые никем не используются", ""),
 }
 # А эти уже сами по себе сводные — трогать нечего.
 NEVER_GROUP = {"orphan_many", "unused_export_many", "todo_marks",
@@ -196,8 +197,12 @@ def count_scanned(root: Path) -> dict:
     Сканер секретов ходит шире, чем по коду: настройки, скрипты выкатки,
     docker-файлы. Считать только код — занижать охват и путать человека.
     """
-    skip = {".git", "node_modules", ".next", "dist", "build", ".venv", "venv",
-            "__pycache__", "vendor", "target", ".turbo", ".cache", ".mypy_cache"}
+    # тот же список, что у сканеров: две точки правды на один вопрос
+    # рано или поздно расходятся
+    skip = {".git", "node_modules", ".next", "dist", "build", ".venv", "venv", "env",
+            "__pycache__", ".pytest_cache", "vendor", "target", ".idea", ".vscode",
+            "coverage", ".turbo", ".cache", "site-packages", ".mypy_cache", ".tox",
+            ".claude", ".cursor"}
     code_ext = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".vue",
                 ".svelte", ".go", ".rb", ".php", ".java", ".kt", ".rs", ".cs", ".swift"}
     code = text = 0
@@ -266,8 +271,13 @@ def group_repeats(findings: list[dict]) -> list[dict]:
         places = [f["where"] for f in group]
 
         if fid in SUMMARIZE:
-            # каждая находка со своими цифрами — перечисляем, а не обобщаем
-            head["title"] = f"{SUMMARIZE[fid]} — {len(group)}"
+            # каждая находка со своими цифрами — перечисляем, а не обобщаем.
+            # В заголовок выносим худший случай: иначе туда попадает первый
+            # попавшийся, и человек недооценивает масштаб.
+            label, unit = SUMMARIZE[fid]
+            numbers = [int(n) for f in group for n in re.findall(r"\b(\d{2,})\b", f["title"])]
+            worst = f", самый крупный — {max(numbers)} {unit}".rstrip() if numbers and unit else ""
+            head["title"] = f"{label} — таких {len(group)}{worst}"
             head["where"] = "; ".join(places[:GROUP_SHOW]) + (
                 f" … и ещё {len(places) - GROUP_SHOW}" if len(places) > GROUP_SHOW else "")
             head["what"] = (f"Под это правило попало {len(group)} разных мест, "
@@ -491,7 +501,14 @@ def main() -> int:
     report_path = None
     if not args.no_report:
         # по умолчанию кладём в проверяемый проект: человек должен знать, где смотреть
-        report_path = Path(args.report) if args.report else root / "vibecheck-report.md"
+        # относительный путь — от проверяемого проекта, а не от того места,
+        # откуда запустили: иначе отчёт ложится внутрь папки скилла и стирается
+        # при следующем обновлении плагина
+        if args.report:
+            given = Path(args.report)
+            report_path = given if given.is_absolute() else root / given
+        else:
+            report_path = root / "vibecheck-report.md"
         report_path.write_text(report, encoding="utf-8")
 
     raw_total = sum(f.get("grouped", 1) for f in findings)
