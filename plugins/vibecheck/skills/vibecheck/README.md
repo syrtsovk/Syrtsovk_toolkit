@@ -78,6 +78,16 @@ python3 skills/vibecheck/scripts/vibecheck.py /путь/к/проекту --repo
 
 ---
 
+## Самый быстрый способ
+
+Дайте своему AI-агенту ссылку и напишите «поставь всё и проверь проект»:
+
+```
+https://github.com/syrtsovk/Syrtsovk_toolkit/tree/main/plugins/vibecheck
+```
+
+Внутри лежит [start-here-for-ai.md](../../start-here-for-ai.md) — агент прочитает его и сделает всё сам: поставит, запустит, пройдёт по коду и положит отчёт в ваш проект.
+
 ## Установка
 
 ### Claude Code — одной командой
