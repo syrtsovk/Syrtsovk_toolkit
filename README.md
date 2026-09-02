@@ -191,6 +191,13 @@ description: "Короткое описание + триггеры актива�
 
 ---
 
+## Заимствования
+
+Часть подхода в `vibecheck` опирается на MIT-проект
+[vibe-audit](https://github.com/haraldalder-vibemogger/vibe-audit), идеи по поиску
+неиспользуемого кода — из [плагинов Ильи Измайлова](https://github.com/izmailovilya/ilia-izmailov-plugins).
+Подробно, с текстом чужой лицензии — в [NOTICE](NOTICE).
+
 ## Лицензия
 
 [MIT](LICENSE) — используй как хочешь, форкай, адаптируй под свой workflow.
