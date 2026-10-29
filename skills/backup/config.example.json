@@ -1,0 +1,6 @@
+{
+  "repo": "~/claude-backup",
+  "extra_excludes": [],
+  "scan_dirs": null,
+  "include_memory": true
+}
