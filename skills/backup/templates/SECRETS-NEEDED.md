@@ -4,11 +4,15 @@
 
 ## 1. MCP-серверы
 
-Структура ваших MCP-серверов лежит в `claude-home/claude.json.sanitized`: команды и аргументы есть, ключи заменены на `<REDACTED>`. Подключайте по образцу:
+Структура ваших MCP-серверов лежит в `claude-home/claude.json.sanitized` (Claude Code) и `codex-home/config.toml.sanitized` (Codex): команды и аргументы есть, ключи заменены на `<REDACTED>`. Подключайте по образцу:
 
 ```bash
-claude mcp add <имя> -- <команда из sanitized-файла>
+claude mcp add <имя> -- <команда из sanitized-файла>      # Claude Code
 ```
+
+В Codex серверы описаны в `config.toml` (разделы `mcp_servers`): впишите их по образцу из `codex-home/config.toml.sanitized`, подставив ключи.
+
+Файл `config.toml.sanitized` целиком не копируйте в `~/.codex/config.toml`: в нём заглушки вместо ключей.
 
 Ключ для каждого сервера возьмите из менеджера паролей.
 
@@ -21,14 +25,14 @@ claude mcp add <имя> -- <команда из sanitized-файла>
 Если в скилле ключ был вписан прямо в файл, бэкап заменил его на `<REDACTED: взять из менеджера паролей>`. Найти такие места:
 
 ```bash
-grep -rn "REDACTED" ~/.claude/skills ~/.claude/scripts ~/.claude/hooks
+grep -rn "REDACTED" ~/.claude/skills ~/.claude/scripts ~/.claude/hooks ~/.codex/skills
 ```
 
 В каждом найденном месте верните значение из менеджера паролей или вынесите его в переменную окружения.
 
 ## 3. Куда войти заново
 
-- Claude Code: `claude`, затем `/login`
+- Claude Code: `claude`, затем `/login`; Codex: войти в аккаунт при первом запуске
 - GitHub: `gh auth login`
 - Плагины и коннекторы: `/plugin`, `/mcp`
 - Прочие сервисы, которыми пользуются ваши скиллы: _(впишите)_

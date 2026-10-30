@@ -1,5 +1,7 @@
 {
-  "repo": "~/claude-backup",
+  "repo": "~/ai-backup",
+  "targets": null,
+  "custom_targets": [],
   "extra_excludes": [],
   "scan_dirs": null,
   "include_memory": true

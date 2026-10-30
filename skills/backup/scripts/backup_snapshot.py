@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-"""Бэкап настроек Claude Code в ваш приватный git-репозиторий (/backup).
+"""Бэкап настроек ИИ-инструментов (Claude Code, Codex, любая другая папка настроек) в ваш приватный git-репозиторий.
 
 Что делает:
-  1. Копирует в клон бэкап-репозитория:
-       ~/.claude/{skills,commands,hooks,agents,scripts,CLAUDE.md,settings.json} → claude-home/
-       ~/.claude/projects/*/memory                                              → claude-home/projects-memory/
-       ~/.claude.json → claude-home/claude.json.sanitized (только список MCP-серверов, ключи <REDACTED>)
-     Ссылки разыменованы в обычные файлы, библиотеки и файлы с секретами исключены (список EXCLUDES).
+  1. Для каждой «цели» копирует белый список файлов из её папки в клон бэкап-репозитория <имя>-home/:
+       claude  ~/.claude  {skills,commands,hooks,agents,scripts,CLAUDE.md,settings.json} + память проектов
+                          + ~/.claude.json → claude.json.sanitized (список MCP-серверов, ключи <REDACTED>)
+       codex   ~/.codex   {AGENTS.md,skills,agents,hooks,hooks.json} + config.toml → config.toml.sanitized
+       своя    любая папка из custom_targets в config.json
+     Ссылки разыменованы в обычные файлы, библиотеки и файлы с секретами исключены (EXCLUDES).
+     Берётся только то, что в белом списке: входы в аккаунт (auth.json), история чатов и кэши не попадают никогда.
   2. Показывает, какие ваши git-репозитории не отправлены в облако (что пропадёт, если Mac умрёт).
   3. Проверяет, что репозиторий бэкапа приватный (через gh). Публичный — стоп, ничего не пишет.
 
 Использование:
   backup_snapshot.py            # сухой прогон: что изменится + отчёт, ничего не пишет
-  backup_snapshot.py --apply    # обновить снимок, git add, скан на секреты (коммит и пуш делает /backup)
+  backup_snapshot.py --apply    # обновить снимок, git add, скан на секреты (коммит и пуш делает агент по SKILL.md)
   backup_snapshot.py --all      # в отчёте по репозиториям показать все, а не первые 25
 
-Настройки (config.json рядом со скиллом, образец config.example.json; переменная BACKUP_REPO главнее):
-  repo            — путь к клону бэкап-репозитория (по умолчанию ~/claude-backup)
+Настройки (config.json рядом со скриптом, образец config.example.json; переменная BACKUP_REPO главнее):
+  repo            — путь к клону бэкап-репозитория (по умолчанию ~/ai-backup)
+  targets         — какие встроенные цели брать: ["claude", "codex"]; не задано = все, чья папка существует
+  custom_targets  — свои цели: [{"name": "...", "home": "~/.папка", "items": [...], "sanitize_files": [...]}]
   extra_excludes  — что ещё не брать (шаблоны rsync)
   scan_dirs       — где искать ваши репозитории для отчёта «что не в облаке»
-  include_memory  — брать ли память проектов (true по умолчанию)
+  include_memory  — брать ли память проектов Claude Code (true по умолчанию)
 
 Код возврата при --apply: 0 чисто · 1 находки секретов, стоп · 2 подозрения, проверь · 3 нечего сохранять ·
 4 репозиторий бэкапа публичный, стоп. Значения секретов не печатаются никогда.
@@ -35,13 +39,20 @@ from datetime import date
 from pathlib import Path
 
 HOME = Path.home()
-CLAUDE = HOME / ".claude"
 HERE = Path(os.path.abspath(__file__)).parent
 SKILL_DIR = HERE.parent
 SCAN = HERE / "secret_scan.py"
-ITEMS = ["skills", "commands", "hooks", "agents", "scripts", "CLAUDE.md", "settings.json"]
 EXCLUDES = [".venv", "venv", "node_modules", "__pycache__", "*.pyc", ".DS_Store", ".git", "ms-playwright",
             ".trash", ".env", ".env.*", "*.pem", "*.key", "secret_*", "*credential*"]
+BUILTIN = {
+    "claude": {"home": "~/.claude",
+               "items": ["skills", "commands", "hooks", "agents", "scripts", "CLAUDE.md", "settings.json"],
+               "memory": True,
+               "sanitized": [("~/.claude.json", "claude.json.sanitized", "claude_json")]},
+    "codex": {"home": "~/.codex",
+              "items": ["AGENTS.md", "skills", "agents", "hooks", "hooks.json"],
+              "sanitized": [("~/.codex/config.toml", "config.toml.sanitized", "toml")]},
+}
 SECRET_KEY = re.compile(r"key|token|secret|passw|auth|bearer|cookie|credential", re.I)
 MIXED = re.compile(r"^(?=.*\d)(?=.*[A-Za-z])[A-Za-z0-9_\-.]{24,}$")
 R = "<REDACTED>"
@@ -49,9 +60,15 @@ STUB = "<REDACTED: взять из менеджера паролей>"
 QUOTED = re.compile(r"""((?:key|token|secret|passw\w*|api_?key)\w*["']?\s*[:=]\s*)(["'])([^"'\s]{8,})\2""", re.I)
 
 
+def expand(p):
+    return Path(os.path.expanduser(str(p)))
+
+
 def load_config():
-    cfg = {"repo": "~/claude-backup", "extra_excludes": [], "scan_dirs": None, "include_memory": True}
-    for p in (os.environ.get("BACKUP_CONFIG"), CLAUDE / "skills/backup/config.json", SKILL_DIR / "config.json"):
+    cfg = {"repo": "~/ai-backup", "targets": None, "custom_targets": [], "extra_excludes": [],
+           "scan_dirs": None, "include_memory": True}
+    for p in (os.environ.get("BACKUP_CONFIG"), SKILL_DIR / "config.json", HOME / ".claude/skills/backup/config.json",
+              HOME / ".codex/skills/backup/config.json"):
         if p and Path(p).is_file():
             cfg.update(json.loads(Path(p).read_text()))
             break
@@ -61,11 +78,31 @@ def load_config():
 
 
 CFG = load_config()
-REPO = Path(os.path.expanduser(CFG["repo"]))
+REPO = expand(CFG["repo"])
 
 
 def sh(*cmd, cwd=None):
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+
+def active_targets():
+    """Список целей: {name, home, items, memory, sanitized:[(src, dst_name, kind)]}."""
+    out, wanted = [], CFG.get("targets")
+    for name, t in BUILTIN.items():
+        if (wanted is None and expand(t["home"]).is_dir()) or (wanted is not None and name in wanted):
+            out.append({"name": name, **t})
+    for c in CFG.get("custom_targets") or []:
+        san = []
+        for rel in c.get("sanitize_files") or []:
+            kind = "toml" if rel.endswith(".toml") else "json" if rel.endswith(".json") else None
+            if kind:
+                san.append((f"{c['home']}/{rel}", f"{rel}.sanitized", kind))
+            else:
+                print(f"  ! {c['name']}: не умею чистить {rel} (только .json и .toml), файл не беру")
+        skip = {rel for rel in c.get("sanitize_files") or []}
+        out.append({"name": c["name"], "home": c["home"], "items": [i for i in c.get("items") or [] if i not in skip],
+                    "sanitized": san})
+    return [t for t in out if expand(t["home"]).is_dir()]
 
 
 def _scan_module():
@@ -136,10 +173,7 @@ def clean_server(s):
     return {k: (clean_value(k, v) if k not in ("env", "headers", "args", "url") else v) for k, v in s.items()}
 
 
-def sanitized_claude_json():
-    src = HOME / ".claude.json"
-    if not src.exists():
-        return None
+def sanitized_claude_json(src):
     d = json.loads(src.read_text())
     out = {"_comment": f"Только структура MCP-серверов из ~/.claude.json, ключи заменены на {R}. Аккаунт, кэши, история не берутся. "
                        "Ключи — см. SECRETS-NEEDED.md. Этот файл НЕ ставится автоматически.",
@@ -150,6 +184,45 @@ def sanitized_claude_json():
         if p.get("mcpServers"):
             out["projectMcpServers"][path] = {n: clean_server(s) for n, s in p["mcpServers"].items()}
     return json.dumps(out, ensure_ascii=False, indent=2) + "\n"
+
+
+def redact(obj, key=""):
+    if isinstance(obj, dict):
+        if key in ("env", "headers", "http_headers"):
+            return {k: R for k in obj}
+        return {k: redact(v, k) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [redact(v, key) for v in obj]
+    return clean_value(key, obj)
+
+
+def sanitized_json(src):
+    return json.dumps(redact(json.loads(src.read_text())), ensure_ascii=False, indent=2) + "\n"
+
+
+def sanitized_toml(src):
+    text = src.read_text()
+    try:
+        import tomllib  # Python 3.11+; на старом системном python проверку пропускаем
+        tomllib.loads(text)  # битый файл — пусть упадёт, а не уйдёт криво
+    except ImportError:
+        pass
+    out, table = [], ""
+    for line in text.splitlines():
+        m = re.match(r"\s*\[+([^\]]+)\]+", line)
+        if m:
+            table = m.group(1)
+        kv = re.match(r"(\s*)([\w\"'.-]+)(\s*=\s*)(.+)", line)
+        if kv and not m:
+            key, val = kv.group(2), kv.group(4).strip()
+            secret_table = re.search(r"(^|\.)(env|headers|http_headers)$", table)
+            if secret_table or SECRET_KEY.search(key) or MIXED.match(val.strip("\"'")):
+                line = f'{kv.group(1)}{key}{kv.group(3)}"{R}"'
+        out.append(line)
+    return "\n".join(out) + "\n"
+
+
+SANITIZERS = {"claude_json": sanitized_claude_json, "json": sanitized_json, "toml": sanitized_toml}
 
 
 def write_if_changed(path, text, apply):
@@ -166,32 +239,42 @@ def write_if_changed(path, text, apply):
 
 
 def snapshot(apply):
-    changes = {}
-    for it in ITEMS:
-        src = CLAUDE / it
-        if src.exists():
-            lines, err = rsync(src, REPO / "claude-home" / it, apply)
-            if err:
-                print(f"  ! rsync {it}: {err}")
+    changes, manifest = {}, {}
+    for t in active_targets():
+        name, home, out = t["name"], expand(t["home"]), REPO / f"{t['name']}-home"
+        manifest[name] = {"home": t["home"]}
+        for it in t["items"]:
+            src = home / it
+            if src.exists():
+                lines, err = rsync(src, out / it, apply)
+                if err:
+                    print(f"  ! rsync {name}/{it}: {err}")
+                if lines:
+                    changes[f"{name}/{it}"] = lines
+        if t.get("memory") and CFG.get("include_memory", True):
+            lines = []
+            for mem in sorted(home.glob("projects/*/memory")):
+                if mem.resolve().is_dir():
+                    got, _ = rsync(mem.resolve(), out / "projects-memory" / mem.parent.name, apply)
+                    lines += got
             if lines:
-                changes[f"claude/{it}"] = lines
-    if CFG.get("include_memory", True):
-        lines = []
-        for mem in sorted(CLAUDE.glob("projects/*/memory")):
-            if mem.resolve().is_dir():
-                got, _ = rsync(mem.resolve(), REPO / "claude-home/projects-memory" / mem.parent.name, apply)
-                lines += got
-        if lines:
-            changes["claude/память проектов"] = lines
-    lines = write_if_changed(REPO / "claude-home/claude.json.sanitized", sanitized_claude_json(), apply)
+                changes[f"{name}/память проектов"] = lines
+        for src_p, dst_name, kind in t.get("sanitized") or []:
+            src = expand(src_p)
+            if src.is_file():
+                lines = write_if_changed(out / dst_name, SANITIZERS[kind](src), apply)
+                if lines:
+                    changes[f"{name}/{dst_name}"] = lines
+    # какая цель в какую папку ставится при восстановлении
+    lines = write_if_changed(REPO / "backup-manifest.json", json.dumps({"targets": manifest}, indent=2) + "\n", apply)
     if lines:
-        changes["claude-home/claude.json.sanitized"] = lines
+        changes["backup-manifest.json"] = lines
     return changes
 
 
 def scan_dirs():
     if CFG.get("scan_dirs"):
-        dirs = [Path(os.path.expanduser(d)) for d in CFG["scan_dirs"]]
+        dirs = [expand(d) for d in CFG["scan_dirs"]]
     else:
         dirs = [HOME / d for d in ("Developer", "Projects", "Code", "dev", "src", "Documents/GitHub")]
     return [d for d in dirs if d.is_dir()]
@@ -249,24 +332,35 @@ def private_state():
     return r.stdout.strip() == "true", m.group(1)
 
 
+def _public_stop(slug):
+    print(f"СТОП: репозиторий {slug} ПУБЛИЧНЫЙ. В бэкапе ваши скиллы, команды и память — отправлять их в открытый репозиторий нельзя.\n"
+          f"Сделайте приватным: gh repo edit {slug} --visibility private --accept-visibility-change-consequences\n"
+          "и запустите бэкап снова. Ничего не записано.")
+    sys.exit(4)
+
+
 def main():
     apply = "--apply" in sys.argv
     if not (REPO / ".git").exists():
         sys.exit(f"Нет клона бэкап-репозитория {REPO}. Создай приватный и склонируй:\n"
-                 f"  gh repo create claude-backup --private --clone   (в папке {REPO.parent})\n"
+                 f"  gh repo create ai-backup --private --clone   (в папке {REPO.parent})\n"
                  "Подробно — INSTALL.md скилла.")
     priv, info = private_state()
     if priv is False:
         _public_stop(info)
     if priv is None:
         print(f"!! Приватность не подтверждена: {info}")
+    targets = active_targets()
+    if not targets:
+        sys.exit("Нет ни одной цели: не нашёл ~/.claude, ~/.codex и своих папок из custom_targets. Проверь config.json.")
     print(f"== {'БЭКАП' if apply else 'СУХОЙ ПРОГОН (ничего не пишу; для записи --apply)'}")
+    print("   цели: " + ", ".join(f"{t['name']} ({t['home']})" for t in targets))
     changes = snapshot(apply)
     total = sum(len(v) for v in changes.values())
     print(f"\n1. Снимок настроек: изменений {total}")
     for k, v in changes.items():
         print(f"  {k}: {len(v)}")
-    for p in (REPO / "claude-home").rglob("*"):
+    for p in REPO.glob("*-home/**/*"):
         if p.is_file() and p.stat().st_size > 5_000_000:
             print(f"  ! файл больше 5 МБ: {p.relative_to(REPO)}")
     print("\n2. Репозитории, где что-то не в облаке (пропадёт, если Mac умрёт):")
@@ -276,19 +370,13 @@ def main():
     if changes and (REPO / "README.md").exists():
         txt = (REPO / "README.md").read_text()
         (REPO / "README.md").write_text(re.sub(r"\*\*Дата снимка:\*\* [0-9-]+", f"**Дата снимка:** {date.today()}", txt))
-    sh("git", "add", "-A", "--", "claude-home", "README.md", cwd=REPO)
+    paths = sorted(p.name for p in REPO.glob("*-home") if p.is_dir()) + [f for f in ("backup-manifest.json", "README.md") if (REPO / f).exists()]
+    sh("git", "add", "-A", "--", *paths, cwd=REPO)
     if not sh("git", "diff", "--cached", "--name-only", cwd=REPO).stdout.strip():
         print("\nНечего сохранять: снимок совпадает с прошлым.")
         return 3
     print("\n3. Скан на секреты (добавленные строки):", flush=True)
     return subprocess.run([sys.executable, str(SCAN), "--staged"], cwd=REPO).returncode
-
-
-def _public_stop(slug):
-    print(f"СТОП: репозиторий {slug} ПУБЛИЧНЫЙ. В бэкапе ваши скиллы, команды и память — отправлять их в открытый репозиторий нельзя.\n"
-          f"Сделайте приватным: gh repo edit {slug} --visibility private --accept-visibility-change-consequences\n"
-          "и запустите бэкап снова. Ничего не записано.")
-    sys.exit(4)
 
 
 if __name__ == "__main__":
